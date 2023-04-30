@@ -25,7 +25,7 @@ namespace Durable.Crony.Microservice
             {
                 slog.LogRetryDone(context.InstanceId);
 
-                await CleanupInstanceHistory(context);
+                await context.CleanupInstanceHistory();
 
                 return;
             }
@@ -187,7 +187,7 @@ namespace Durable.Crony.Microservice
             return starter.CreateCheckStatusResponse(req, timerName);
         }
 
-        private static async Task CleanupInstanceHistory(IDurableOrchestrationContext context)
+        public static async Task CleanupInstanceHistory(this IDurableOrchestrationContext context)
         {
             try
             {

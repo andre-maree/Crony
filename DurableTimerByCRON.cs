@@ -20,7 +20,16 @@ namespace Durable.Crony.Microservice
         {
             ILogger slog = context.CreateReplaySafeLogger(logger);
 
-            CronyTimerByCRON timerObject = context.GetInput<CronyTimerByCRON>();
+            (CronyTimerByCRON timerObject, int count) = context.GetInput<(CronyTimerByCRON, int)>(); 
+            
+            if (timerObject.MaxNumberOfAttempts <= count)
+            {
+                slog.LogCronDone(context.InstanceId);
+
+                await context.CleanupInstanceHistory();
+
+                return;
+            }
 
             CronExpression expression = new(timerObject.CRON);
 
@@ -40,7 +49,9 @@ namespace Durable.Crony.Microservice
             {
                 await timerObject.ExecuteTimer(context, deadline);
 
-                context.ContinueAsNew(timerObject);
+                count++;
+
+                context.ContinueAsNew((timerObject, count));
             }
             catch (HttpRequestException ex)
             {
@@ -77,6 +88,7 @@ namespace Durable.Crony.Microservice
                     Url = "https://reqbin.com/sample/get/json",
                     IsHttpGet = true,
                     CRON = "0 0/1 * * * ?",
+                    MaxNumberOfAttempts = 1,
                     WebhookRetryOptions = new()
                     {
                         BackoffCoefficient = 1.2,
@@ -92,7 +104,7 @@ namespace Durable.Crony.Microservice
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
 
-                await starter.StartNewAsync("OrchestrateTimerByCRON", timerName, GETtimer);
+                await starter.StartNewAsync("OrchestrateTimerByCRON", timerName, (GETtimer, 0));
 
                 return starter.CreateCheckStatusResponse(req, timerName);
             }
@@ -105,7 +117,7 @@ namespace Durable.Crony.Microservice
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
 
-                await starter.StartNewAsync("OrchestrateTimerByCRON", timerName, timer);
+                await starter.StartNewAsync("OrchestrateTimerByCRON", timerName, (timer, 0));
 
                 return starter.CreateCheckStatusResponse(req, timerName);
             }
@@ -130,6 +142,13 @@ namespace Durable.Crony.Microservice
         {
 #if DEBUG
             logger.LogCritical($"CRON: EXECUTING {text} - {now}");
+#endif
+        }
+
+        private static void LogCronDone(this ILogger logger, string text)
+        {
+#if DEBUG
+            logger.LogError($"CRON: DONE {text}");
 #endif
         }
         #endregion
