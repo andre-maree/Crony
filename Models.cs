@@ -11,7 +11,7 @@ namespace Durable.Crony.Microservice
         public string Url { get; set; }
         public int Timeout { get; set; } = 15;
         public Dictionary<string, string[]> Headers { get; set; } = new();
-        public bool IsHttpGet { get; set; }
+        public string HttpMethod { get; set; }
         public string Content { get; set; }
         public bool PollIf202 { get; set; }
         public RetryOptions WebhookRetryOptions { get; set; }

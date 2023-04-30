@@ -20,7 +20,7 @@ namespace Durable.Crony.Microservice
             ILogger slog = context.CreateReplaySafeLogger(logger);
 
             (CronyTimerByRetry timerObject, int count, DateTime deadline) = context.GetInput<(CronyTimerByRetry, int, DateTime)>();
-            
+
             if (timerObject.TimerRetryOptions.MaxNumberOfAttempts <= count)
             {
                 slog.LogRetryDone(context.InstanceId);
@@ -30,7 +30,7 @@ namespace Durable.Crony.Microservice
                 return;
             }
 
-            TimeSpan delay = timerObject.TimerRetryOptions.ComputeNextDelay(count);
+            TimeSpan delay = ComputeNextDelay(timerObject.TimerRetryOptions.Interval, timerObject.TimerRetryOptions.BackoffCoefficient, timerObject.TimerRetryOptions.MaxRetryInterval, count);
 
             deadline = deadline.Add(delay);
 
@@ -40,36 +40,29 @@ namespace Durable.Crony.Microservice
 
             DateTime now = context.CurrentUtcDateTime;
 
-            
-            //else
-            //{
-                slog.LogRetryTimer(context.InstanceId, now);
+            slog.LogRetryTimer(context.InstanceId, now);
 
-                try
-                {
-                    await timerObject.ExecuteTimer(context, deadline); 
+            count++;
+
+            try
+            {
+                await timerObject.ExecuteTimer(context, deadline);
                 
-                if (now > deadline.AddSeconds(timerObject.TimerRetryOptions.Interval * 1.5))
-                {
-                    deadline = now;
-                }
+                deadline = now > deadline.AddSeconds(delay.TotalSeconds) ? now : deadline;
 
-                count++;
-
-                    context.ContinueAsNew((timerObject, count, deadline));//.AddSeconds(timerObject.WebhookRetryOptions.Interval) <= now ? now : deadline));
-                }
-                catch (HttpRequestException ex)
+                context.ContinueAsNew((timerObject, count, deadline));//.AddSeconds(timerObject.WebhookRetryOptions.Interval) <= now ? now : deadline));
+            }
+            catch (HttpRequestException ex)
+            {
+                if (ex.StatusCode == null)
                 {
-                    if (ex.StatusCode == null)
-                    {
-                        context.SetCustomStatus($"{ex.Message}");
-                    }
-                    else
-                    {
-                        context.SetCustomStatus($"{ex.StatusCode} - {ex.Message}");
-                    }
+                    context.SetCustomStatus($"{ex.Message}");
                 }
-            //}
+                else
+                {
+                    context.SetCustomStatus($"{ex.StatusCode} - {ex.Message}");
+                }
+            }
         }
 
         [FunctionName("SetTimerForDurableFunction")]
@@ -88,13 +81,13 @@ namespace Durable.Crony.Microservice
                 {
                     Content = "wappa",
                     Url = "https://reqbin.com/sample/get/json",
-                    IsHttpGet = true,
+                    HttpMethod = "get",
                     TimerRetryOptions = new()
                     {
                         BackoffCoefficient = 1.2,
-                        MaxRetryInterval = 360,
+                        MaxRetryInterval = 30,
                         MaxNumberOfAttempts = 1,
-                        Interval = 10
+                        Interval = 20
                         //RetryTimeout
                     },
                     WebhookRetryOptions = new()
@@ -146,13 +139,13 @@ namespace Durable.Crony.Microservice
                 {
                     Content = "wappa",
                     Url = "https://reqbin.com/sample/get/json",
-                    IsHttpGet = true,
+                    HttpMethod = "get",
                     TimerRetryOptions = new()
                     {
                         BackoffCoefficient = 1,
-                        MaxRetryInterval = 360,
-                        MaxNumberOfAttempts = 1000,
-                        Interval = 30
+                        MaxRetryInterval = 300,
+                        MaxNumberOfAttempts = 100,
+                        Interval = 20
                         //RetryTimeout
                     },
                     WebhookRetryOptions = new()
@@ -203,7 +196,7 @@ namespace Durable.Crony.Microservice
             }
         }
 
-        private static TimeSpan ComputeNextDelay(this RetryOptions retryOptions, int attempt)//, DateTime firstAttempt)
+        private static TimeSpan ComputeNextDelay(int interval, double backoffCoefficient, int maxRetryInterval, int attempt)//, DateTime firstAttempt)
         {
             //DateTime retryExpiration = (retryOptions.RetryTimeout != TimeSpan.MaxValue)
             //    ? firstAttempt.Add(retryOptions.RetryTimeout)
@@ -211,11 +204,11 @@ namespace Durable.Crony.Microservice
 
             //if (DateTime.Now < retryExpiration)
             //    {
-            double nextDelayInMilliseconds = TimeSpan.FromSeconds(retryOptions.Interval).TotalMilliseconds * (Math.Pow(retryOptions.BackoffCoefficient, attempt));
+            double nextDelayInMilliseconds = TimeSpan.FromSeconds(interval).TotalMilliseconds * (Math.Pow(backoffCoefficient, attempt));
 
             TimeSpan nextDelay = TimeSpan.FromMilliseconds(nextDelayInMilliseconds);
 
-            TimeSpan maxDelay = TimeSpan.FromSeconds(retryOptions.MaxRetryInterval);
+            TimeSpan maxDelay = TimeSpan.FromSeconds(maxRetryInterval);
 
             return nextDelay.TotalMilliseconds > maxDelay.TotalMilliseconds
                 ? maxDelay

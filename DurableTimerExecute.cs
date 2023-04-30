@@ -25,10 +25,11 @@ namespace Durable.Crony.Microservice
                 throw;
             }
         }
+
         [Deterministic]
         private static async Task<HttpStatusCode> ExecuteTimer(this CronyTimer timerObject, IDurableOrchestrationContext context)//, string statusUrl, bool isDurableCheck)
         {
-            DurableHttpRequest durquest = new(timerObject.IsHttpGet ? HttpMethod.Get : HttpMethod.Post,
+            DurableHttpRequest durquest = new(GetHttpMethod(timerObject.HttpMethod),
                                               new Uri(timerObject.Url),
                                               content: timerObject.Content,
                                               httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(timerObject.WebhookRetryOptions.Interval), timerObject.WebhookRetryOptions.MaxNumberOfAttempts)
@@ -37,7 +38,7 @@ namespace Durable.Crony.Microservice
                                                   MaxRetryInterval = TimeSpan.FromSeconds(timerObject.WebhookRetryOptions.MaxRetryInterval),
                                                   StatusCodesToRetry = GetRetryEnabledStatusCodes()
 
-        },
+                                              },
                                               asynchronousPatternEnabled: timerObject.PollIf202,
                                               timeout: TimeSpan.FromSeconds(timerObject.Timeout));
 
@@ -51,14 +52,18 @@ namespace Durable.Crony.Microservice
             return response.StatusCode;
         }
 
-        private static List<HttpStatusCode> GetRetryEnabledStatusCodes()
+        [Deterministic]
+        private static HttpMethod GetHttpMethod(string method) => method[..2].ToUpper()
+        switch
         {
-            return new()
-            {
-                HttpStatusCode.Conflict, HttpStatusCode.BadGateway, HttpStatusCode.GatewayTimeout, HttpStatusCode.RequestTimeout, HttpStatusCode.ServiceUnavailable
-            };
-        }
+            "GE" => HttpMethod.Get, "PO" => HttpMethod.Post, "PU" => HttpMethod.Put, "DE" => HttpMethod.Delete, _ => HttpMethod.Get
+        };
 
+        private static List<HttpStatusCode> GetRetryEnabledStatusCodes() => new()
+        {
+            HttpStatusCode.Conflict, HttpStatusCode.BadGateway, HttpStatusCode.GatewayTimeout, HttpStatusCode.RequestTimeout, HttpStatusCode.ServiceUnavailable
+        };
+        
         //monitor orch for status
         //private static async Task WaitForDurableFunctionRunning(this TimerObject timerObject, string statusUrl, IDurableOrchestrationContext context)
         //{

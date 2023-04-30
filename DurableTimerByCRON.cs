@@ -86,14 +86,14 @@ namespace Durable.Crony.Microservice
                 {
                     Content = "wappa",
                     Url = "https://reqbin.com/sample/get/json",
-                    IsHttpGet = true,
+                    HttpMethod = "get",
                     CRON = "0 0/1 * * * ?",
-                    MaxNumberOfAttempts = 1,
+                    MaxNumberOfAttempts = 20,
                     WebhookRetryOptions = new()
                     {
                         BackoffCoefficient = 1.2,
                         MaxRetryInterval = 360,
-                        MaxNumberOfAttempts = 3,
+                        MaxNumberOfAttempts = 20,
                         Interval = 5
                         //RetryTimeout
                     }
