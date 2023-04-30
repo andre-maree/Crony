@@ -34,6 +34,7 @@ public class CronyTimer
  public class CronyTimerByCRON : CronyTimer
  {
      public string CRON { get; set; }
+     public int MaxNumberOfAttempts { get; set; }
  }
 
  public class CronyTimerByRetry : CronyTimer
