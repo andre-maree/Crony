@@ -9,6 +9,7 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
 - Timers can be deleted by calling the DeleteTimer endpoint.
 - A webhook can be set to call when the timer event fires. The URL, headers, HTTP method, content, and retries can be set for the webhook call.
 - Use a timer naming convention to query timers by name prefix. Timer name example: "MyApp_MyReminderTimer_00000000000031".
+- The timer by CRON expression can be set to have a maximum number of webhook triggers. This is an added feature to normal CRON expressions.
 
 Timer API:
 ```r
