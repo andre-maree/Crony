@@ -1,6 +1,6 @@
 # Crony Serverless Scheduler Service
 
-Crony is a Durable Function timer scheduler service that can call a webhook that is defined with each timer instance. Timer instances are created by posting a JSON timer definition to an API endpoint. This is a modernized rework of the Azure WebJobs scheduler that runs on the App Service. This service can also run on the App Service, but for best scalability, deploy it to one of the Azure Serverless Function plans.
+Crony is a Durable Function timer scheduler service that can call a webhook that is defined with each timer instance. Timer instances are created by posting a JSON timer definition to the Crony create timer API endpoint. This is a modernized rework of the Azure WebJobs scheduler that runs on the App Service. This service can also run on the App Service, but for best scalability, deploy it to one of the Azure Serverless Function plans.
 
 - Schedule a background timer trigger by HTTP posting a timer JSON object to this service.
 - There are two types of timers - timers set by CRON expression, and retry timers:
@@ -9,6 +9,8 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
 - Timers can be deleted by calling the DeleteTimer endpoint.
 - A webhook can be set to call when the timer event fires. The URL, headers, HTTP method, content, and retries can be set for the webhook call.
 - Use a timer naming convention to query timers by name prefix. Timer name example: "MyApp_MyReminderTimer_00000000000031".
+- The timer by CRON expression can be set to have a maximum number of webhook triggers. This is an added feature to normal CRON expressions.
+- When running in a serverless function app plan, the queue polling will be fixed to 10 seconds. It should therefor be safe to set a minimum timer interval of only 15 seconds.
 
 Timer API:
 ```r
@@ -34,6 +36,7 @@ public class CronyTimer
  public class CronyTimerByCRON : CronyTimer
  {
      public string CRON { get; set; }
+     public int MaxNumberOfAttempts { get; set; }
  }
 
  public class CronyTimerByRetry : CronyTimer
