@@ -10,6 +10,7 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
 - A webhook can be set to call when the timer event fires. The URL, headers, HTTP method, content, and retries can be set for the webhook call.
 - Use a timer naming convention to query timers by name prefix. Timer name example: "MyApp_MyReminderTimer_00000000000031".
 - The timer by CRON expression can be set to have a maximum number of webhook triggers. This is an added feature to normal CRON expressions.
+- When running in a serverless function app plan, the queue polling will be fixed to 10 seconds. It should therefor be safe to set a minimum timer interval of only 15 seconds!
 
 Timer API:
 ```r
