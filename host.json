@@ -1,0 +1,27 @@
+{
+  "version": "2.0",
+  "extensions": {
+    "queues": {
+      "maxPollingInterval": "00:00:10"
+    },
+    "durableTask": {
+      "logReplayEvents": "false",
+      "hubName": "DurableTimerTaskHub4"
+    },
+    "http": {
+      "routePrefix": ""
+    }
+  },
+  "logging": {
+    "logLevel": {
+      "DurableTask.AzureStorage": "None",
+      "DurableTask.Core": "None"
+    },
+    "applicationInsights": {
+      "samplingExcludedTypes": "Request",
+      "samplingSettings": {
+        "isEnabled": false
+      }
+    }
+  }
+}
