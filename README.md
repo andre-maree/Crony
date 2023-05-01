@@ -14,7 +14,7 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
 - The timer by CRON expression can be set to have a maximum number of webhook triggers. This is an added feature to normal CRON expressions.
 - Quartz.NET is used for CRON calculations: https://www.freeformatter.com/cron-expression-generator-quartz.html
 - When running in a serverless function app plan, the queue polling will be fixed to 10 seconds.
-- The minimum polling interval for SetTimerByRetry is 10 seconds and 15 seconds for SetTimerByCRON.
+- Minimum polling intervals: 10 seconds for a ByRetry timer and 15 seconds for a CRON timer.
 
 Timer API:
 ```r
