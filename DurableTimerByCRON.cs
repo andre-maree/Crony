@@ -24,7 +24,11 @@ namespace Durable.Crony.Microservice
             
             if (timerObject.MaxNumberOfAttempts <= count)
             {
-                await CompleteTimer(context, slog);
+                slog.LogCronDone(context.InstanceId);
+
+                await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
+
+                return;
             }
 
             CronExpression expression = new(timerObject.CRON);
@@ -47,7 +51,11 @@ namespace Durable.Crony.Microservice
             {
                 if ((int)await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
                 {
-                    await CompleteTimer(context, slog);
+                    slog.LogCronDone(context.InstanceId);
+
+                    await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
+
+                    return;
                 }
 
                 context.ContinueAsNew((timerObject, count));
@@ -63,15 +71,6 @@ namespace Durable.Crony.Microservice
                     context.SetCustomStatus($"{ex.StatusCode} - {ex.Message}");
                 }
             }
-        }
-
-        private static async Task CompleteTimer(IDurableOrchestrationContext context, ILogger slog)
-        {
-            slog.LogCronDone(context.InstanceId);
-
-            await context.CleanupInstanceHistory();
-
-            return;
         }
 
         //http://localhost:7078/SetTimerByCRON/cron-ZZZ

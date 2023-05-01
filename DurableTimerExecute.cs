@@ -10,11 +10,11 @@ namespace Durable.Crony.Microservice
     public static class DurableTimerExecute
     {
         [Deterministic]
-        public static async Task<HttpStatusCode> ExecuteTimer(this CronyTimer timerObject, IDurableOrchestrationContext context, DateTime deadline)
+        public static async Task<HttpStatusCode> ExecuteTimer(this HttpObject httpObject, IDurableOrchestrationContext context, DateTime deadline)
         {
             try
             {
-                HttpStatusCode code = await timerObject.ExecuteTimer(context);
+                HttpStatusCode code = await httpObject.ExecuteTimer(context);
 
                 context.SetCustomStatus($"{code} - {deadline}");
 
@@ -29,22 +29,21 @@ namespace Durable.Crony.Microservice
         }
 
         [Deterministic]
-        private static async Task<HttpStatusCode> ExecuteTimer(this CronyTimer timerObject, IDurableOrchestrationContext context)//, string statusUrl, bool isDurableCheck)
+        private static async Task<HttpStatusCode> ExecuteTimer(this HttpObject httpObject, IDurableOrchestrationContext context)//, string statusUrl, bool isDurableCheck)
         {
-            DurableHttpRequest durquest = new(GetHttpMethod(timerObject.HttpMethod),
-                                              new Uri(timerObject.Url),
-                                              content: timerObject.Content,
-                                              httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(timerObject.RetryOptions.Interval), timerObject.RetryOptions.MaxNumberOfAttempts)
+            DurableHttpRequest durquest = new(GetHttpMethod(httpObject.HttpMethod),
+                                              new Uri(httpObject.Url),
+                                              content: httpObject.Content,
+                                              httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(httpObject.RetryOptions.Interval), httpObject.RetryOptions.MaxNumberOfAttempts)
                                               {
-                                                  BackoffCoefficient = timerObject.RetryOptions.BackoffCoefficient,
-                                                  MaxRetryInterval = TimeSpan.FromSeconds(timerObject.RetryOptions.MaxRetryInterval),
-                                                  StatusCodesToRetry = GetRetryEnabledStatusCodes()
-
+                                                  BackoffCoefficient = httpObject.RetryOptions.BackoffCoefficient,
+                                                  MaxRetryInterval = TimeSpan.FromSeconds(httpObject.RetryOptions.MaxRetryInterval),
+                                                  StatusCodesToRetry = httpObject.GetRetryEnabledStatusCodes()
                                               },
-                                              asynchronousPatternEnabled: timerObject.PollIf202,
-                                              timeout: TimeSpan.FromSeconds(timerObject.Timeout));
+                                              asynchronousPatternEnabled: httpObject.PollIf202,
+                                              timeout: TimeSpan.FromSeconds(httpObject.Timeout));
 
-            foreach (var headers in timerObject.Headers)
+            foreach (var headers in httpObject.Headers)
             {
                 durquest.Headers.Add(headers.Key, new(headers.Value));
             }
@@ -55,13 +54,13 @@ namespace Durable.Crony.Microservice
         }
 
         [Deterministic]
-        private static HttpMethod GetHttpMethod(string method) => method[..2].ToUpper()
+        public static HttpMethod GetHttpMethod(this string method) => method[..2].ToUpper()
         switch
         {
             "GE" => HttpMethod.Get, "PO" => HttpMethod.Post, "PU" => HttpMethod.Put, "DE" => HttpMethod.Delete, _ => HttpMethod.Get
         };
 
-        private static List<HttpStatusCode> GetRetryEnabledStatusCodes() => new()
+        public static List<HttpStatusCode> GetRetryEnabledStatusCodes(this HttpObject httpObject) => new()
         {
             HttpStatusCode.Conflict, HttpStatusCode.BadGateway, HttpStatusCode.GatewayTimeout, HttpStatusCode.RequestTimeout, HttpStatusCode.ServiceUnavailable
         };

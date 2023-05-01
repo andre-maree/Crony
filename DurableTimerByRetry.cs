@@ -23,7 +23,11 @@ namespace Durable.Crony.Microservice
 
             if (timerObject.TimerOptions.MaxNumberOfAttempts <= count)
             {
-                await CompleteTimer(context, slog);
+                slog.LogRetryDone(context.InstanceId);
+
+                await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
+
+                return;
             }
 
             TimeSpan delay = ComputeNextDelay(timerObject.TimerOptions.Interval, timerObject.TimerOptions.BackoffCoefficient, timerObject.TimerOptions.MaxRetryInterval, count);
@@ -44,7 +48,11 @@ namespace Durable.Crony.Microservice
             {
                 if ((int)await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
                 {
-                    await CompleteTimer(context, slog);
+                    slog.LogRetryDone(context.InstanceId);
+
+                    await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
+
+                    return;
                 }
 
                 if (now > deadline.AddSeconds(delay.TotalSeconds)) {
@@ -64,15 +72,6 @@ namespace Durable.Crony.Microservice
                     context.SetCustomStatus($"{ex.StatusCode} - {ex.Message}");
                 }
             }
-        }
-
-        private static async Task CompleteTimer(IDurableOrchestrationContext context, ILogger slog)
-        {
-            slog.LogRetryDone(context.InstanceId);
-
-            await context.CleanupInstanceHistory();
-
-            return;
         }
 
         [FunctionName("SetTimerForDurableFunction")]
@@ -189,22 +188,6 @@ namespace Durable.Crony.Microservice
             await starter.StartNewAsync("OrchestrateTimerByRetry", timerName, (timer, 0, DateTime.UtcNow));
 
             return starter.CreateCheckStatusResponse(req, timerName);
-        }
-
-        public static async Task CleanupInstanceHistory(this IDurableOrchestrationContext context)
-        {
-            try
-            {
-                await context.CallActivityWithRetryAsync("CompleteTimer", new Microsoft.Azure.WebJobs.Extensions.DurableTask.RetryOptions(TimeSpan.FromSeconds(5), 15)
-                {
-                    BackoffCoefficient = 2,
-                    MaxRetryInterval = TimeSpan.FromHours(1),
-                }, context.InstanceId);
-            }
-            catch (Exception ex)
-            {
-                // log instnce history not deleted
-            }
         }
 
         private static TimeSpan ComputeNextDelay(int interval, double backoffCoefficient, int maxRetryInterval, int attempt)//, DateTime firstAttempt)
