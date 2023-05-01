@@ -24,11 +24,7 @@ namespace Durable.Crony.Microservice
             
             if (timerObject.MaxNumberOfAttempts <= count)
             {
-                slog.LogCronDone(context.InstanceId);
-
-                await context.CleanupInstanceHistory();
-
-                return;
+                await CompleteTimer(context, slog);
             }
 
             CronExpression expression = new(timerObject.CRON);
@@ -45,11 +41,14 @@ namespace Durable.Crony.Microservice
 
             slog.LogCronTimer(context.InstanceId, context.CurrentUtcDateTime);
 
+            count++;
+
             try
             {
-                await timerObject.ExecuteTimer(context, deadline);
-
-                count++;
+                if ((int)await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
+                {
+                    await CompleteTimer(context, slog);
+                }
 
                 context.ContinueAsNew((timerObject, count));
             }
@@ -64,6 +63,15 @@ namespace Durable.Crony.Microservice
                     context.SetCustomStatus($"{ex.StatusCode} - {ex.Message}");
                 }
             }
+        }
+
+        private static async Task CompleteTimer(IDurableOrchestrationContext context, ILogger slog)
+        {
+            slog.LogCronDone(context.InstanceId);
+
+            await context.CleanupInstanceHistory();
+
+            return;
         }
 
         //http://localhost:7078/SetTimerByCRON/cron-ZZZ
@@ -89,7 +97,7 @@ namespace Durable.Crony.Microservice
                     HttpMethod = "get",
                     CRON = "0 0/1 * * * ?",
                     MaxNumberOfAttempts = 20,
-                    WebhookRetryOptions = new()
+                    RetryOptions = new()
                     {
                         BackoffCoefficient = 1.2,
                         MaxRetryInterval = 360,
@@ -99,7 +107,7 @@ namespace Durable.Crony.Microservice
                     }
                 };
 
-                if (GETtimer.WebhookRetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
+                if (GETtimer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
                 {
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
@@ -112,7 +120,7 @@ namespace Durable.Crony.Microservice
             {
                 CronyTimerByCRON timer = JsonConvert.DeserializeObject<CronyTimerByCRON>(await req.Content.ReadAsStringAsync());
 
-                if (timer.WebhookRetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
+                if (timer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
                 {
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
