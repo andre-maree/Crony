@@ -10,13 +10,15 @@ namespace Durable.Crony.Microservice
     public static class DurableTimerExecute
     {
         [Deterministic]
-        public static async Task ExecuteTimer(this CronyTimer timerObject, IDurableOrchestrationContext context, DateTime deadline)
+        public static async Task<HttpStatusCode> ExecuteTimer(this CronyTimer timerObject, IDurableOrchestrationContext context, DateTime deadline)
         {
             try
             {
                 HttpStatusCode code = await timerObject.ExecuteTimer(context);
 
                 context.SetCustomStatus($"{code} - {deadline}");
+
+                return code;
             }
             catch (Exception ex)
             {
@@ -32,10 +34,10 @@ namespace Durable.Crony.Microservice
             DurableHttpRequest durquest = new(GetHttpMethod(timerObject.HttpMethod),
                                               new Uri(timerObject.Url),
                                               content: timerObject.Content,
-                                              httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(timerObject.WebhookRetryOptions.Interval), timerObject.WebhookRetryOptions.MaxNumberOfAttempts)
+                                              httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(timerObject.RetryOptions.Interval), timerObject.RetryOptions.MaxNumberOfAttempts)
                                               {
-                                                  BackoffCoefficient = timerObject.WebhookRetryOptions.BackoffCoefficient,
-                                                  MaxRetryInterval = TimeSpan.FromSeconds(timerObject.WebhookRetryOptions.MaxRetryInterval),
+                                                  BackoffCoefficient = timerObject.RetryOptions.BackoffCoefficient,
+                                                  MaxRetryInterval = TimeSpan.FromSeconds(timerObject.RetryOptions.MaxRetryInterval),
                                                   StatusCodesToRetry = GetRetryEnabledStatusCodes()
 
                                               },

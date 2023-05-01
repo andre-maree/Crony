@@ -14,7 +14,8 @@ namespace Durable.Crony.Microservice
         public string HttpMethod { get; set; }
         public string Content { get; set; }
         public bool PollIf202 { get; set; }
-        public RetryOptions WebhookRetryOptions { get; set; }
+        public RetryOptions RetryOptions { get; set; }
+        public int StatusCodeReplyForCompletion { get; set; }
     }
 
     public class CronyTimerByCRON : CronyTimer
@@ -25,7 +26,7 @@ namespace Durable.Crony.Microservice
 
     public class CronyTimerByRetry : CronyTimer
     {
-        public RetryOptions TimerRetryOptions { get; set; }
+        public RetryOptions TimerOptions { get; set; }
     }
 
     public class RetryOptions
