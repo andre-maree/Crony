@@ -4,7 +4,7 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
 
 - Schedule a background timer trigger by HTTP posting a timer JSON object to this service.
 - There are two types of timers - timers set by CRON expression, and retry timers:
-    * CRON timers are eternally recurring and are created by HTTP posting a timer definition to the SetTimerByCRON endpoint.
+    * CRON timers can be eternally recurring and are created by HTTP posting a timer definition to the SetTimerByCRON endpoint.
     * Retry timers are not eternally recurring and will end when the maximum number of retries is reached. These are created by posting to the SetTimerByRetry endpoint.
 - Timers can be deleted by calling the DeleteTimer endpoint.
 - A webhook can be set to call when the timer event fires. The URL, headers, HTTP method, content, and retries can be set for the webhook call.
