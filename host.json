@@ -6,7 +6,22 @@
     },
     "durableTask": {
       "logReplayEvents": "false",
-      "hubName": "DurableTimerTaskHub4"
+      "hubName": "DurableTimerTaskHub4",
+      "storageProvider": {
+        "controlQueueBatchSize": 32,
+        "controlQueueBufferThreshold": 256,
+        "controlQueueVisibilityTimeout": "00:05:00",
+        "maxQueuePollingInterval": "00:00:10",
+        "partitionCount": 4,
+        "workItemQueueVisibilityTimeout": "00:05:00"
+      },
+      "maxConcurrentActivityFunctions": 10,
+      "maxConcurrentOrchestratorFunctions": 10,
+      "extendedSessionsEnabled": false,
+      "extendedSessionIdleTimeoutInSeconds": 10,
+      "useAppLease": true,
+      "useGracefulShutdown": false,
+      "maxEntityOperationBatchSize": 50
     },
     "http": {
       "routePrefix": ""
