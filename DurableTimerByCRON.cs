@@ -1,4 +1,5 @@
 using System;
+using System.Linq.Expressions;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Quartz;
+using static Microsoft.AspNetCore.Hosting.Internal.HostingApplication;
 
 namespace Durable.Crony.Microservice
 {
@@ -33,9 +35,18 @@ namespace Durable.Crony.Microservice
 
             CronExpression expression = new(timerObject.CRON);
 
-            DateTime deadline = context.CurrentUtcDateTime.AddSeconds(20);
+            DateTime deadline = context.CurrentUtcDateTime.AddSeconds(9);
 
             DateTimeOffset? nextFireUTCTime = expression.GetNextValidTimeAfter(deadline);
+
+            if (nextFireUTCTime == null)
+            {
+                slog.LogCronDone(context.InstanceId);
+
+                await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
+
+                return;
+            }
 
             deadline = nextFireUTCTime.Value.UtcDateTime;
 
@@ -94,7 +105,9 @@ namespace Durable.Crony.Microservice
                     Content = "wappa",
                     Url = "https://reqbin.com/sample/get/json",
                     HttpMethod = "get",
-                    CRON = "0 0/1 * * * ?",
+                    //CRON = "0 0/1 * * * ?",
+                    //CRON = "0 5,55 12,13 1 MAY ? 2023", meeting reminder
+                    CRON = "0 5,55 12,13 1 MAY ? 2022",
                     MaxNumberOfAttempts = 20,
                     RetryOptions = new()
                     {
@@ -118,6 +131,13 @@ namespace Durable.Crony.Microservice
             else
             {
                 CronyTimerByCRON timer = JsonConvert.DeserializeObject<CronyTimerByCRON>(await req.Content.ReadAsStringAsync());
+
+                CronExpression expression = new(timer.CRON);
+
+                if (expression.GetNextValidTimeAfter(DateTime.UtcNow) == null)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
+                }
 
                 if (timer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
                 {

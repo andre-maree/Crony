@@ -190,7 +190,7 @@ namespace Durable.Crony.Microservice
             return starter.CreateCheckStatusResponse(req, timerName);
         }
 
-        private static TimeSpan ComputeNextDelay(int interval, double backoffCoefficient, int maxRetryInterval, int attempt)//, DateTime firstAttempt)
+        private static TimeSpan ComputeNextDelay(int interval, double backoffCoefficient, int maxRetryInterval, int count)//, DateTime firstAttempt)
         {
             //DateTime retryExpiration = (retryOptions.RetryTimeout != TimeSpan.MaxValue)
             //    ? firstAttempt.Add(retryOptions.RetryTimeout)
@@ -198,7 +198,7 @@ namespace Durable.Crony.Microservice
 
             //if (DateTime.Now < retryExpiration)
             //    {
-            double nextDelayInMilliseconds = TimeSpan.FromSeconds(interval).TotalMilliseconds * (Math.Pow(backoffCoefficient, attempt));
+            double nextDelayInMilliseconds = TimeSpan.FromSeconds(interval).TotalMilliseconds * (Math.Pow(backoffCoefficient, count));
 
             TimeSpan nextDelay = TimeSpan.FromMilliseconds(nextDelayInMilliseconds);
 
