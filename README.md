@@ -8,9 +8,13 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
     * Retry timers are not eternally recurring and will end when the maximum number of retries is reached. These are created by posting to the SetTimerByRetry endpoint.
 - Timers can be deleted by calling the DeleteTimer endpoint.
 - A webhook can be set to call when the timer event fires. The URL, headers, HTTP method, content, and retries can be set for the webhook call.
+- A timer completion webhook can be set to be called when a timer completes it`s life cycle (when maximium number of webhook calls reached or completed by recieved status code from the webhook).
+- An HTTP status code can be set to complete the timer when it matches the webhook returned status code. For example: his can be used to call the webhook until it returns HTTP 200 OK after it was returning 202 Accepted codes.
 - Use a timer naming convention to query timers by name prefix. Timer name example: "MyApp_MyReminderTimer_00000000000031".
 - The timer by CRON expression can be set to have a maximum number of webhook triggers. This is an added feature to normal CRON expressions.
-- When running in a serverless function app plan, the queue polling will be fixed to 10 seconds. It should therefor be safe to set a minimum timer interval of only 15 seconds.
+- Quartz.NET is used for CRON calculations: https://www.freeformatter.com/cron-expression-generator-quartz.html
+- When running in a serverless function app plan, the queue polling will be fixed to 10 seconds.
+- The minimum polling interval for SetTimerByRetry is 10 seconds and 15 seconds for SetTimerByCRON.
 
 Timer API:
 ```r

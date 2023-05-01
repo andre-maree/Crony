@@ -10,10 +10,10 @@
       "storageProvider": {
         "controlQueueBatchSize": 32,
         "controlQueueBufferThreshold": 256,
-        "controlQueueVisibilityTimeout": "00:05:00",
+        "controlQueueVisibilityTimeout": "00:01:00",
         "maxQueuePollingInterval": "00:00:10",
-        "partitionCount": 4,
-        "workItemQueueVisibilityTimeout": "00:05:00"
+        "partitionCount": 1,
+        "workItemQueueVisibilityTimeout": "00:00:10"
       },
       "maxConcurrentActivityFunctions": 10,
       "maxConcurrentOrchestratorFunctions": 10,

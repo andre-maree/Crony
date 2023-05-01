@@ -152,9 +152,9 @@ namespace Durable.Crony.Microservice
                     StatusCodeReplyForCompletion = 500,
                     TimerOptions = new()
                     {
-                        BackoffCoefficient = 1,
+                        BackoffCoefficient = 1.05,
                         MaxRetryInterval = 300,
-                        MaxNumberOfAttempts = 2,
+                        MaxNumberOfAttempts = 10,
                         Interval = 10
                         //RetryTimeout
                     },
