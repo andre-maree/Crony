@@ -65,7 +65,7 @@ namespace Durable.Crony.Microservice
 
         [FunctionName(nameof(DeleteTimer))]
         public static async Task DeleteTimer(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post", "get", Route = "DeleteTimer/{timerName}")] HttpRequestMessage req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "del", Route = "DeleteTimer/{timerName}")] HttpRequestMessage req,
             [DurableClient] IDurableOrchestrationClient client,
                 string timerName)
         {

@@ -8,8 +8,8 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
     * Retry timers are not eternally recurring and will end when the maximum number of retries is reached. These are created by posting to the SetTimerByRetry endpoint.
 - Timers can be deleted by calling the DeleteTimer endpoint.
 - A webhook can be set to call when the timer event fires. The URL, headers, HTTP method, content, and retries can be set for the webhook call.
-- A timer completion webhook can be set to be called when a timer completes it`s life cycle (when maximium number of webhook calls reached or completed by recieved status code from the webhook).
-- An HTTP status code can be set to complete the timer when it matches the webhook returned status code. For example: his can be used to call the webhook until it returns HTTP 200 OK after it was returning 202 Accepted codes.
+- A timer completion webhook can be set (CompletionWebhook property) to be called when a timer completes it`s life cycle (when maximium number of webhook calls reached or completed by recieved status code from the webhook).
+- An HTTP status code can be set (StatusCodeReplyForCompletion property) to complete the timer when it matches the webhook returned status code. For example: his can be used to call the webhook until it returns HTTP 200 OK after it was returning 202 Accepted codes.
 - Use a timer naming convention to query timers by name prefix. Timer name example: "MyApp_MyReminderTimer_00000000000031".
 - The timer by CRON expression can be set to have a maximum number of webhook triggers. This is an added feature to normal CRON expressions.
 - Quartz.NET is used for CRON calculations: https://www.freeformatter.com/cron-expression-generator-quartz.html
@@ -26,33 +26,39 @@ Timer API:
 The timer model classes:
 ```csharp
 // NOTE: All timer values are in seconds.
-public class CronyTimer
- {
-     public string Url { get; set; }
-     public int Timeout { get; set; } = 15;
-     public Dictionary<string, string[]> Headers { get; set; } = new();
-     public bool IsHttpGet { get; set; }
-     public string Content { get; set; }
-     public bool PollIf202 { get; set; }
-     public RetryOptions WebhookRetryOptions { get; set; }
- }
+public class HttpObject
+{
+    public string Url { get; set; }
+    public int Timeout { get; set; } = 15;
+    public Dictionary<string, string[]> Headers { get; set; } = new();
+    public string HttpMethod { get; set; }
+    public string Content { get; set; }
+    public bool PollIf202 { get; set; }
+    public RetryOptions RetryOptions { get; set; }
+}
 
- public class CronyTimerByCRON : CronyTimer
- {
-     public string CRON { get; set; }
-     public int MaxNumberOfAttempts { get; set; }
- }
+public class CronyTimer : HttpObject
+{
+    public int StatusCodeReplyForCompletion { get; set; }
+    public HttpObject CompletionWebhook { get; set; }
+}
 
- public class CronyTimerByRetry : CronyTimer
- {
-     public RetryOptions TimerRetryOptions { get; set; }
- }
+public class CronyTimerByCRON : CronyTimer
+{
+    public string CRON { get; set; }
+    public int MaxNumberOfAttempts { get; set; }
+}
 
- public class RetryOptions
- {
-     public int Interval { get; set; }
-     public int MaxRetryInterval { get; set; }
-     public int MaxNumberOfAttempts { get; set; }
-     public double BackoffCoefficient { get; set; }
- }
+public class CronyTimerByRetry : CronyTimer
+{
+    public RetryOptions TimerOptions { get; set; }
+}
+
+public class RetryOptions
+{
+    public int Interval { get; set; }
+    public int MaxRetryInterval { get; set; }
+    public int MaxNumberOfAttempts { get; set; }
+    public double BackoffCoefficient { get; set; }
+}
 ```
