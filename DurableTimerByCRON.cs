@@ -22,7 +22,7 @@ namespace Durable.Crony.Microservice
         {
             ILogger slog = context.CreateReplaySafeLogger(logger);
 
-            (CronyTimerByCRON timerObject, int count) = context.GetInput<(CronyTimerByCRON, int)>(); 
+            (CronyTimerByCRON timerObject, int count, DateTime deadline) = context.GetInput<(CronyTimerByCRON, int, DateTime)>(); 
             
             if (timerObject.MaxNumberOfAttempts <= count)
             {
@@ -35,7 +35,7 @@ namespace Durable.Crony.Microservice
 
             CronExpression expression = new(timerObject.CRON);
 
-            DateTime deadline = context.CurrentUtcDateTime.AddSeconds(9);
+            deadline = context.CurrentUtcDateTime.AddSeconds(1);//.AddSeconds(20)
 
             DateTimeOffset? nextFireUTCTime = expression.GetNextValidTimeAfter(deadline);
 
@@ -69,7 +69,7 @@ namespace Durable.Crony.Microservice
                     return;
                 }
 
-                context.ContinueAsNew((timerObject, count));
+                context.ContinueAsNew((timerObject, count, deadline));
             }
             catch (HttpRequestException ex)
             {
@@ -107,7 +107,7 @@ namespace Durable.Crony.Microservice
                     HttpMethod = "get",
                     //CRON = "0 0/1 * * * ?",
                     //CRON = "0 5,55 12,13 1 MAY ? 2023", meeting reminder
-                    CRON = "0 5,55 12,13 1 MAY ? 2022",
+                    CRON = "0/30 * * ? * * *",
                     MaxNumberOfAttempts = 20,
                     RetryOptions = new()
                     {
