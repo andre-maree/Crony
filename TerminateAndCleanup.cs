@@ -32,11 +32,6 @@ namespace Durable.Crony.Microservice
                                                   asynchronousPatternEnabled: webhook.PollIf202,
                                                   timeout: TimeSpan.FromSeconds(webhook.Timeout));
 
-                //foreach (var headers in webhook.Headers)
-                //{
-                //    durquest.Headers.Add(headers.Key, new(headers.Value));
-                //}
-
                 await context.CallHttpAsync(durquest);
             }
 
