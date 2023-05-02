@@ -2,6 +2,8 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Crony;
+using Crony.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -20,7 +22,7 @@ namespace Durable.Crony.Microservice
         {
             ILogger slog = context.CreateReplaySafeLogger(logger);
 
-            (CronyTimerCRON timerObject, int count) = context.GetInput<(CronyTimerCRON, int)>(); 
+            (TimerCRON timerObject, int count) = context.GetInput<(TimerCRON, int)>(); 
             
             if (timerObject.MaxNumberOfAttempts <= count)
             {
@@ -100,11 +102,11 @@ namespace Durable.Crony.Microservice
             {
                 log.LogCronStart(timerName);
 
-                CronyTimerCRON GETtimer = new()
+                TimerCRON GETtimer = new()
                 {
                     Content = "wappa",
                     Url = "https://reqbin.com/sample/get/json",
-                    HttpMethod = "get",
+                    HttpMethod = HttpMethod.Get,
                     //CRON = "0 0/1 * * * ?",
                     //CRON = "0 5,55 12,13 1 MAY ? 2023", meeting reminder
                     CRON = "0/15 * * ? * * *",
@@ -130,19 +132,21 @@ namespace Durable.Crony.Microservice
             }
             else
             {
-                CronyTimerCRON timer = JsonConvert.DeserializeObject<CronyTimerCRON>(await req.Content.ReadAsStringAsync());
+                CronyTimerCRON timerModel = JsonConvert.DeserializeObject<CronyTimerCRON>(await req.Content.ReadAsStringAsync());
 
-                CronExpression expression = new(timer.CRON);
+                CronExpression expression = new(timerModel.CRON);
 
                 if (expression.GetNextValidTimeAfter(DateTime.UtcNow) == null)
                 {
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
 
-                if (timer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
+                if (timerModel.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
                 {
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
+
+                TimerCRON timer = timerModel.CopyCronModel();
 
                 await client.StartNewAsync("OrchestrateTimerByCRON", timerName, (timer, 0));
 

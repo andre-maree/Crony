@@ -54,7 +54,7 @@ public class CronyTimerRetry : CronyTimer
     public RetryOptions TimerOptions { get; set; }
 }
 
-public class RetryOptions
+public class CronyRetryOptions
 {
     public int Interval { get; set; }
     public int MaxRetryInterval { get; set; }

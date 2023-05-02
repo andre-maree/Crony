@@ -7,33 +7,35 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using DurableTask.Core;
 using Microsoft.Extensions.Logging;
+using Crony.Models;
+using Crony;
 
 namespace Durable.Crony.Microservice
 {
     public static class TerminateAndCleanup
     {
-        public static async Task CompleteTimer(IDurableOrchestrationContext context, CronyWebhook httpObject)
+        public static async Task CompleteTimer(IDurableOrchestrationContext context, Webhook webhook)
         {
             Task cleanupTask = context.PurgeInstanceHistory();
 
-            if (httpObject != null)
+            if (webhook != null)
             {
-                DurableHttpRequest durquest = new(httpObject.HttpMethod.GetHttpMethod(),
-                                                  new Uri(httpObject.Url),
-                                                  content: httpObject.Content,
-                                                  httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(httpObject.RetryOptions.Interval), httpObject.RetryOptions.MaxNumberOfAttempts)
+                DurableHttpRequest durquest = new(webhook.HttpMethod,
+                                                  new Uri(webhook.Url),
+                                                  content: webhook.Content,
+                                                  httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
                                                   {
-                                                      BackoffCoefficient = httpObject.RetryOptions.BackoffCoefficient,
-                                                      MaxRetryInterval = TimeSpan.FromSeconds(httpObject.RetryOptions.MaxRetryInterval),
-                                                      StatusCodesToRetry = httpObject.GetRetryEnabledStatusCodes()
+                                                      BackoffCoefficient = webhook.RetryOptions.BackoffCoefficient,
+                                                      MaxRetryInterval = TimeSpan.FromSeconds(webhook.RetryOptions.MaxRetryInterval),
+                                                      StatusCodesToRetry = webhook.GetRetryEnabledStatusCodes()
                                                   },
-                                                  asynchronousPatternEnabled: httpObject.PollIf202,
-                                                  timeout: TimeSpan.FromSeconds(httpObject.Timeout));
+                                                  asynchronousPatternEnabled: webhook.PollIf202,
+                                                  timeout: TimeSpan.FromSeconds(webhook.Timeout));
 
-                foreach (var headers in httpObject.Headers)
-                {
-                    durquest.Headers.Add(headers.Key, new(headers.Value));
-                }
+                //foreach (var headers in webhook.Headers)
+                //{
+                //    durquest.Headers.Add(headers.Key, new(headers.Value));
+                //}
 
                 await context.CallHttpAsync(durquest);
             }

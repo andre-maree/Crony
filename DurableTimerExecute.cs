@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Crony;
+using Crony.Models;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 
 namespace Durable.Crony.Microservice
@@ -10,11 +12,11 @@ namespace Durable.Crony.Microservice
     public static class DurableTimerExecute
     {
         [Deterministic]
-        public static async Task<HttpStatusCode> ExecuteTimer(this CronyWebhook httpObject, IDurableOrchestrationContext context, DateTime deadline)
+        public static async Task<HttpStatusCode> ExecuteTimer(this Webhook webhook, IDurableOrchestrationContext context, DateTime deadline)
         {
             try
             {
-                HttpStatusCode code = await httpObject.ExecuteTimer(context);
+                HttpStatusCode code = await webhook.ExecuteTimer(context);
 
                 context.SetCustomStatus($"{code} - {deadline}");
 
@@ -29,42 +31,25 @@ namespace Durable.Crony.Microservice
         }
 
         [Deterministic]
-        private static async Task<HttpStatusCode> ExecuteTimer(this CronyWebhook httpObject, IDurableOrchestrationContext context)//, string statusUrl, bool isDurableCheck)
+        private static async Task<HttpStatusCode> ExecuteTimer(this Webhook webhook, IDurableOrchestrationContext context)//, string statusUrl, bool isDurableCheck)
         {
-            DurableHttpRequest durquest = new(GetHttpMethod(httpObject.HttpMethod),
-                                              new Uri(httpObject.Url),
-                                              content: httpObject.Content,
-                                              httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(httpObject.RetryOptions.Interval), httpObject.RetryOptions.MaxNumberOfAttempts)
+            DurableHttpRequest durquest = new(webhook.HttpMethod,
+                                              new Uri(webhook.Url),
+                                              content: webhook.Content,
+                                              httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
                                               {
-                                                  BackoffCoefficient = httpObject.RetryOptions.BackoffCoefficient,
-                                                  MaxRetryInterval = TimeSpan.FromSeconds(httpObject.RetryOptions.MaxRetryInterval),
-                                                  StatusCodesToRetry = httpObject.GetRetryEnabledStatusCodes()
+                                                  BackoffCoefficient = webhook.RetryOptions.BackoffCoefficient,
+                                                  MaxRetryInterval = TimeSpan.FromSeconds(webhook.RetryOptions.MaxRetryInterval),
+                                                  StatusCodesToRetry = webhook.GetRetryEnabledStatusCodes()
                                               },
-                                              asynchronousPatternEnabled: httpObject.PollIf202,
-                                              timeout: TimeSpan.FromSeconds(httpObject.Timeout));
-
-            foreach (var headers in httpObject.Headers)
-            {
-                durquest.Headers.Add(headers.Key, new(headers.Value));
-            }
+                                              asynchronousPatternEnabled: webhook.PollIf202,
+                                              timeout: TimeSpan.FromSeconds(webhook.Timeout));
 
             DurableHttpResponse response = await context.CallHttpAsync(durquest);
 
             return response.StatusCode;
-        }
+        }        
 
-        [Deterministic]
-        public static HttpMethod GetHttpMethod(this string method) => method[..2].ToUpper()
-        switch
-        {
-            "GE" => HttpMethod.Get, "PO" => HttpMethod.Post, "PU" => HttpMethod.Put, "DE" => HttpMethod.Delete, _ => HttpMethod.Get
-        };
-
-        public static List<HttpStatusCode> GetRetryEnabledStatusCodes(this CronyWebhook httpObject) => new()
-        {
-            HttpStatusCode.Conflict, HttpStatusCode.BadGateway, HttpStatusCode.GatewayTimeout, HttpStatusCode.RequestTimeout, HttpStatusCode.ServiceUnavailable
-        };
-        
         //monitor orch for status
         //private static async Task WaitForDurableFunctionRunning(this TimerObject timerObject, string statusUrl, IDurableOrchestrationContext context)
         //{

@@ -2,6 +2,8 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Crony;
+using Crony.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -19,7 +21,7 @@ namespace Durable.Crony.Microservice
         {
             ILogger slog = context.CreateReplaySafeLogger(logger);
 
-            (CronyTimerRetry timerObject, int count, DateTime deadline) = context.GetInput<(CronyTimerRetry, int, DateTime)>();
+            (TimerRetry timerObject, int count, DateTime deadline) = context.GetInput<(TimerRetry, int, DateTime)>();
 
             if (timerObject.TimerOptions.MaxNumberOfAttempts <= count)
             {
@@ -94,11 +96,11 @@ namespace Durable.Crony.Microservice
             {
                 log.LogRetryStart(timerName);
 
-                CronyTimerRetry GETtimer = new()
+                TimerRetry GETtimer = new()
                 {
                     Content = "wappa",
                     Url = "https://reqbin.com/sample/get/json",
-                    HttpMethod = "get",
+                    HttpMethod = HttpMethod.Get,
                     StatusCodeReplyForCompletion = 500,
                     TimerOptions = new()
                     {
@@ -128,12 +130,14 @@ namespace Durable.Crony.Microservice
                 return client.CreateCheckStatusResponse(req, timerName);
             }
 
-            CronyTimerRetry timer = JsonConvert.DeserializeObject<CronyTimerRetry>(await req.Content.ReadAsStringAsync());
+            CronyTimerRetry timerModel = JsonConvert.DeserializeObject<CronyTimerRetry>(await req.Content.ReadAsStringAsync());
 
-            if (timer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
+            if (timerModel.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
             {
                 return new HttpResponseMessage(HttpStatusCode.BadRequest);
             }
+
+            TimerRetry timer = timerModel.CopyRetryModel();
 
             await client.StartNewAsync("OrchestrateTimerByRetry", timerName, (timer, 0, DateTime.UtcNow));
 

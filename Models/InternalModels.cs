@@ -1,31 +1,32 @@
 ﻿using System.Collections.Generic;
+using System.Net.Http;
 
-namespace Durable.Crony.Microservice
+namespace Crony.Models
 {
-    public class CronyWebhook
+    public class Webhook
     {
         public string Url { get; set; }
         public int Timeout { get; set; } = 15;
-        public Dictionary<string, string[]> Headers { get; set; } = new();
-        public string HttpMethod { get; set; }
+        public Dictionary<string, Microsoft.Extensions.Primitives.StringValues> Headers { get; set; } = new();
+        public HttpMethod HttpMethod { get; set; }
         public string Content { get; set; }
         public bool PollIf202 { get; set; }
         public RetryOptions RetryOptions { get; set; }
     }
 
-    public class CronyTimer : CronyWebhook
+    public class Timer : Webhook
     {
         public int StatusCodeReplyForCompletion { get; set; }
-        public CronyWebhook CompletionWebhook { get; set; }
+        public Webhook CompletionWebhook { get; set; }
     }
 
-    public class CronyTimerCRON : CronyTimer
+    public class TimerCRON : Timer
     {
         public string CRON { get; set; }
         public int MaxNumberOfAttempts { get; set; }
     }
 
-    public class CronyTimerRetry : CronyTimer
+    public class TimerRetry : Timer
     {
         public RetryOptions TimerOptions { get; set; }
     }
