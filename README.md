@@ -16,11 +16,11 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
 - When running in a serverless function app plan, the queue polling will be fixed to 10 seconds.
 - Minimum polling intervals: 10 seconds for a ByRetry timer and 15 seconds for a CRON timer.
 
-Timer API:
+Crony Timer API:
 ```r
-[POST] SetTimerByRetry
-[POST] SetTimerByCRON
-[DELETE] CancelTimer
+[POST] SetTimerByRetry => CronyTimerCRON
+[POST] SetTimerByCRON => CronyTimerRetry
+[DELETE] CancelTimer/{timerName} => string timerName
 ```
 
 The timer model classes:
