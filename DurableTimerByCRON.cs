@@ -20,7 +20,7 @@ namespace Durable.Crony.Microservice
         {
             ILogger slog = context.CreateReplaySafeLogger(logger);
 
-            (CronyTimerByCRON timerObject, int count) = context.GetInput<(CronyTimerByCRON, int)>(); 
+            (CronyTimerCRON timerObject, int count) = context.GetInput<(CronyTimerCRON, int)>(); 
             
             if (timerObject.MaxNumberOfAttempts <= count)
             {
@@ -100,7 +100,7 @@ namespace Durable.Crony.Microservice
             {
                 log.LogCronStart(timerName);
 
-                CronyTimerByCRON GETtimer = new()
+                CronyTimerCRON GETtimer = new()
                 {
                     Content = "wappa",
                     Url = "https://reqbin.com/sample/get/json",
@@ -130,7 +130,7 @@ namespace Durable.Crony.Microservice
             }
             else
             {
-                CronyTimerByCRON timer = JsonConvert.DeserializeObject<CronyTimerByCRON>(await req.Content.ReadAsStringAsync());
+                CronyTimerCRON timer = JsonConvert.DeserializeObject<CronyTimerCRON>(await req.Content.ReadAsStringAsync());
 
                 CronExpression expression = new(timer.CRON);
 

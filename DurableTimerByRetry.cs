@@ -19,7 +19,7 @@ namespace Durable.Crony.Microservice
         {
             ILogger slog = context.CreateReplaySafeLogger(logger);
 
-            (CronyTimerByRetry timerObject, int count, DateTime deadline) = context.GetInput<(CronyTimerByRetry, int, DateTime)>();
+            (CronyTimerRetry timerObject, int count, DateTime deadline) = context.GetInput<(CronyTimerRetry, int, DateTime)>();
 
             if (timerObject.TimerOptions.MaxNumberOfAttempts <= count)
             {
@@ -94,7 +94,7 @@ namespace Durable.Crony.Microservice
             {
                 log.LogRetryStart(timerName);
 
-                CronyTimerByRetry GETtimer = new()
+                CronyTimerRetry GETtimer = new()
                 {
                     Content = "wappa",
                     Url = "https://reqbin.com/sample/get/json",
@@ -128,7 +128,7 @@ namespace Durable.Crony.Microservice
                 return client.CreateCheckStatusResponse(req, timerName);
             }
 
-            CronyTimerByRetry timer = JsonConvert.DeserializeObject<CronyTimerByRetry>(await req.Content.ReadAsStringAsync());
+            CronyTimerRetry timer = JsonConvert.DeserializeObject<CronyTimerRetry>(await req.Content.ReadAsStringAsync());
 
             if (timer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
             {

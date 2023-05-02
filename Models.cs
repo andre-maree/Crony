@@ -2,12 +2,7 @@
 
 namespace Durable.Crony.Microservice
 {
-    //public class Status
-    //{
-    //    public string RuntimeStatus { get; set; }
-    //}
-
-    public class HttpObject
+    public class CronyWebhook
     {
         public string Url { get; set; }
         public int Timeout { get; set; } = 15;
@@ -18,19 +13,19 @@ namespace Durable.Crony.Microservice
         public RetryOptions RetryOptions { get; set; }
     }
 
-    public class CronyTimer : HttpObject
+    public class CronyTimer : CronyWebhook
     {
         public int StatusCodeReplyForCompletion { get; set; }
-        public HttpObject CompletionWebhook { get; set; }
+        public CronyWebhook CompletionWebhook { get; set; }
     }
 
-    public class CronyTimerByCRON : CronyTimer
+    public class CronyTimerCRON : CronyTimer
     {
         public string CRON { get; set; }
         public int MaxNumberOfAttempts { get; set; }
     }
 
-    public class CronyTimerByRetry : CronyTimer
+    public class CronyTimerRetry : CronyTimer
     {
         public RetryOptions TimerOptions { get; set; }
     }

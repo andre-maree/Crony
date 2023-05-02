@@ -12,7 +12,7 @@ namespace Durable.Crony.Microservice
 {
     public static class TerminateAndCleanup
     {
-        public static async Task CompleteTimer(IDurableOrchestrationContext context, HttpObject httpObject)
+        public static async Task CompleteTimer(IDurableOrchestrationContext context, CronyWebhook httpObject)
         {
             Task cleanupTask = context.PurgeInstanceHistory();
 
@@ -57,8 +57,10 @@ namespace Durable.Crony.Microservice
         {
             (string instance, int count, bool delete) = context.GetInput<(string, int, bool)>();
 
-            if(count == 10)
+            if(count == 6)
             {
+                await context.PurgeInstanceHistory();
+
                 return;
             }
 

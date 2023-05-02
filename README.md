@@ -6,7 +6,7 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
 - There are two types of timers - timers set by CRON expression, and retry timers:
     * CRON timers can be eternally recurring and are created by HTTP posting a timer definition to the SetTimerByCRON endpoint.
     * Retry timers are not eternally recurring and will end when the maximum number of retries is reached. These are created by posting to the SetTimerByRetry endpoint.
-- Timers can be deleted by calling the DeleteTimer endpoint.
+- Timers can be deleted by calling the CancelTimer endpoint.
 - A webhook can be set to call when the timer event fires. The URL, headers, HTTP method, content, and retries can be set for the webhook call.
 - A timer completion webhook can be set (CompletionWebhook property) to be called when a timer completes it`s life cycle (when maximium number of webhook calls reached or completed by recieved status code from the webhook).
 - An HTTP status code can be set (StatusCodeReplyForCompletion property) to complete the timer when it matches the webhook returned status code. For example: this can be used to call the webhook until it returns HTTP 200 OK after it was returning 202 Accepted codes.
@@ -20,13 +20,13 @@ Timer API:
 ```r
 [POST] SetTimerByRetry
 [POST] SetTimerByCRON
-[DEL]  DeleteTimer
+[DELETE] CancelTimer
 ```
 
 The timer model classes:
 ```csharp
-// NOTE: All timer values are in seconds.
-public class HttpObject
+// NOTE: All time values are in seconds.
+public class CronyWebhook
 {
     public string Url { get; set; }
     public int Timeout { get; set; } = 15;
@@ -37,19 +37,19 @@ public class HttpObject
     public RetryOptions RetryOptions { get; set; }
 }
 
-public class CronyTimer : HttpObject
+public class CronyTimer : CronyWebhook
 {
     public int StatusCodeReplyForCompletion { get; set; }
-    public HttpObject CompletionWebhook { get; set; }
+    public CronyWebhook CompletionWebhook { get; set; }
 }
 
-public class CronyTimerByCRON : CronyTimer
+public class CronyTimerCRON : CronyTimer
 {
     public string CRON { get; set; }
     public int MaxNumberOfAttempts { get; set; }
 }
 
-public class CronyTimerByRetry : CronyTimer
+public class CronyTimerRetry : CronyTimer
 {
     public RetryOptions TimerOptions { get; set; }
 }

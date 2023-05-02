@@ -10,7 +10,7 @@ namespace Durable.Crony.Microservice
     public static class DurableTimerExecute
     {
         [Deterministic]
-        public static async Task<HttpStatusCode> ExecuteTimer(this HttpObject httpObject, IDurableOrchestrationContext context, DateTime deadline)
+        public static async Task<HttpStatusCode> ExecuteTimer(this CronyWebhook httpObject, IDurableOrchestrationContext context, DateTime deadline)
         {
             try
             {
@@ -29,7 +29,7 @@ namespace Durable.Crony.Microservice
         }
 
         [Deterministic]
-        private static async Task<HttpStatusCode> ExecuteTimer(this HttpObject httpObject, IDurableOrchestrationContext context)//, string statusUrl, bool isDurableCheck)
+        private static async Task<HttpStatusCode> ExecuteTimer(this CronyWebhook httpObject, IDurableOrchestrationContext context)//, string statusUrl, bool isDurableCheck)
         {
             DurableHttpRequest durquest = new(GetHttpMethod(httpObject.HttpMethod),
                                               new Uri(httpObject.Url),
@@ -60,7 +60,7 @@ namespace Durable.Crony.Microservice
             "GE" => HttpMethod.Get, "PO" => HttpMethod.Post, "PU" => HttpMethod.Put, "DE" => HttpMethod.Delete, _ => HttpMethod.Get
         };
 
-        public static List<HttpStatusCode> GetRetryEnabledStatusCodes(this HttpObject httpObject) => new()
+        public static List<HttpStatusCode> GetRetryEnabledStatusCodes(this CronyWebhook httpObject) => new()
         {
             HttpStatusCode.Conflict, HttpStatusCode.BadGateway, HttpStatusCode.GatewayTimeout, HttpStatusCode.RequestTimeout, HttpStatusCode.ServiceUnavailable
         };
