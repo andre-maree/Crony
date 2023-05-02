@@ -44,8 +44,6 @@ namespace Durable.Crony.Microservice
 
             slog.LogRetryTimer(context.InstanceId, now);
 
-            count++;
-
             try
             {
                 if ((int)await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
@@ -60,6 +58,8 @@ namespace Durable.Crony.Microservice
                 if (now > deadline.AddSeconds(delay.TotalSeconds)) {
                     deadline =  now;
                 }
+
+                count++;
 
                 context.ContinueAsNew((timerObject, count, deadline));//.AddSeconds(timerObject.WebhookRetryOptions.Interval) <= now ? now : deadline));
             }

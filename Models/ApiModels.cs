@@ -30,7 +30,7 @@ namespace Crony.Models
         public RetryOptions TimerOptions { get; set; }
     }
 
-    public class CronyRetryOptions
+    public class RetryOptions
     {
         public int Interval { get; set; }
         public int MaxRetryInterval { get; set; }

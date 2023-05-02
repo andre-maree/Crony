@@ -56,8 +56,6 @@ namespace Durable.Crony.Microservice
 
             slog.LogCronTimer(context.InstanceId, context.CurrentUtcDateTime);
 
-            count++;
-
             try
             {
                 if ((int)await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
@@ -68,6 +66,8 @@ namespace Durable.Crony.Microservice
 
                     return;
                 }
+
+                count++;
 
                 context.ContinueAsNew((timerObject, count));
             }
@@ -110,7 +110,7 @@ namespace Durable.Crony.Microservice
                     //CRON = "0 0/1 * * * ?",
                     //CRON = "0 5,55 12,13 1 MAY ? 2023", meeting reminder
                     CRON = "0/15 * * ? * * *",
-                    MaxNumberOfAttempts = 20,
+                    MaxNumberOfAttempts = 3,
                     RetryOptions = new()
                     {
                         BackoffCoefficient = 1.2,
