@@ -20,13 +20,17 @@ namespace Durable.Crony.Microservice
         public static async Task OrchestrateTimerByCRON(
             [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger logger)
         {
+#if DEBUG
             ILogger slog = context.CreateReplaySafeLogger(logger);
+#endif
 
             (TimerCRON timerObject, int count) = context.GetInput<(TimerCRON, int)>(); 
             
             if (timerObject.MaxNumberOfAttempts <= count)
             {
+#if DEBUG
                 slog.LogCronDone(context.InstanceId);
+#endif
 
                 await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
 
@@ -41,7 +45,9 @@ namespace Durable.Crony.Microservice
 
             if (nextFireUTCTime == null)
             {
+#if DEBUG
                 slog.LogCronDone(context.InstanceId);
+#endif
 
                 await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
 
@@ -50,17 +56,23 @@ namespace Durable.Crony.Microservice
 
             deadline = nextFireUTCTime.Value.UtcDateTime;
 
+#if DEBUG
             slog.LogCronNext(context.InstanceId, deadline);
+#endif
 
             await context.CreateTimer(deadline, default);
 
+#if DEBUG
             slog.LogCronTimer(context.InstanceId, context.CurrentUtcDateTime);
+#endif
 
             try
             {
                 if ((int)await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
                 {
+#if DEBUG
                     slog.LogCronDone(context.InstanceId);
+#endif
 
                     await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
 
@@ -155,33 +167,29 @@ namespace Durable.Crony.Microservice
         }
 
         #region Logging
+
         private static void LogCronStart(this ILogger logger, string text)
         {
-#if DEBUG
             logger.LogError($"CRON: START {text} - {DateTime.Now}");
-#endif
         }
 
+#if DEBUG
         private static void LogCronNext(this ILogger logger, string text, DateTime now)
         {
-#if DEBUG
             logger.LogWarning($"CRON: NEXT >>> {text} - {now}");
-#endif
         }
 
         private static void LogCronTimer(this ILogger logger, string text, DateTime now)
         {
-#if DEBUG
             logger.LogCritical($"CRON: EXECUTING {text} - {now}");
-#endif
         }
 
         private static void LogCronDone(this ILogger logger, string text)
         {
-#if DEBUG
             logger.LogError($"CRON: DONE {text}");
-#endif
         }
+#endif
+
         #endregion
     }
 }

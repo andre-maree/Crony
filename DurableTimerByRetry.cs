@@ -19,13 +19,17 @@ namespace Durable.Crony.Microservice
         public static async Task OrchestrateTimerByRetry(
             [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger logger)
         {
+#if DEBUG
             ILogger slog = context.CreateReplaySafeLogger(logger);
+#endif
 
             (TimerRetry timerObject, int count, DateTime deadline) = context.GetInput<(TimerRetry, int, DateTime)>();
 
             if (timerObject.TimerOptions.MaxNumberOfAttempts <= count)
             {
+#if DEBUG
                 slog.LogRetryDone(context.InstanceId);
+#endif
 
                 await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
 
@@ -35,20 +39,24 @@ namespace Durable.Crony.Microservice
             TimeSpan delay = ComputeNextDelay(timerObject.TimerOptions.Interval, timerObject.TimerOptions.BackoffCoefficient, timerObject.TimerOptions.MaxRetryInterval, count);
 
             deadline = deadline.Add(delay);
-
+#if DEBUG
             slog.LogRetryNext(context.InstanceId, deadline);
+#endif
 
             await context.CreateTimer(deadline, default);
 
             DateTime now = context.CurrentUtcDateTime;
-
+#if DEBUG
             slog.LogRetryTimer(context.InstanceId, now);
+#endif
 
             try
             {
                 if ((int)await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
                 {
+#if DEBUG
                     slog.LogRetryDone(context.InstanceId);
+#endif
 
                     await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
 
@@ -164,33 +172,29 @@ namespace Durable.Crony.Microservice
         }
 
         #region Logging
+
         private static void LogRetryStart(this ILogger logger, string text)
         {
-#if DEBUG
             logger.LogError($"RETRY: STARTED {text} - {DateTime.Now}");
-#endif
         }
 
+#if DEBUG
         private static void LogRetryDone(this ILogger logger, string text)
         {
-#if DEBUG
             logger.LogError($"RETRY: DONE {text}");
-#endif
         }
 
         private static void LogRetryNext(this ILogger logger, string text, DateTime now)
         {
-#if DEBUG
             logger.LogWarning($"RETRY: NEXT >>> {text} - {now}");
-#endif
         }
 
         private static void LogRetryTimer(this ILogger logger, string text, DateTime now)
         {
-#if DEBUG
             logger.LogCritical($"RETRY: EXECUTING {text} - {now}");
-#endif
         }
+#endif
+
         #endregion
 
         // Uncomment this Api to help with retry backoff calculations
