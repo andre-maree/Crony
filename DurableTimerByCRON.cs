@@ -1,5 +1,4 @@
 using System;
-using System.Linq.Expressions;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -86,14 +85,16 @@ namespace Durable.Crony.Microservice
         //http://localhost:7078/SetTimerByCRON/cron-ZZZ
         [FunctionName("SetTimerByCRON")]
         public static async Task<HttpResponseMessage> SetTimerByCRON([HttpTrigger(AuthorizationLevel.Anonymous, "post", "get", Route = "SetTimerByCRON/{timerName}")] HttpRequestMessage req,
-                                                                     [DurableClient] IDurableOrchestrationClient starter,
+                                                                     [DurableClient] IDurableClient client,
                                                                      string timerName,
                                                                      ILogger log)
         {
-            //List<HttpStatusCode> codes = new()
-            //{
-            //    HttpStatusCode.Conflict, HttpStatusCode.BadGateway, HttpStatusCode.GatewayTimeout, HttpStatusCode.RequestTimeout, HttpStatusCode.ServiceUnavailable
-            //};
+            bool? isStopped = await TerminateAndCleanup.IsStopped(timerName, client);
+
+            if (isStopped.HasValue && !isStopped.Value)
+            {
+                return new HttpResponseMessage(HttpStatusCode.Conflict);
+            }
 
             if (req.Method == HttpMethod.Get)
             {
@@ -123,9 +124,9 @@ namespace Durable.Crony.Microservice
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
 
-                await starter.StartNewAsync("OrchestrateTimerByCRON", timerName, (GETtimer, 0));
+                await client.StartNewAsync("OrchestrateTimerByCRON", timerName, (GETtimer, 0));
 
-                return starter.CreateCheckStatusResponse(req, timerName);
+                return client.CreateCheckStatusResponse(req, timerName);
             }
             else
             {
@@ -143,9 +144,9 @@ namespace Durable.Crony.Microservice
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
 
-                await starter.StartNewAsync("OrchestrateTimerByCRON", timerName, (timer, 0));
+                await client.StartNewAsync("OrchestrateTimerByCRON", timerName, (timer, 0));
 
-                return starter.CreateCheckStatusResponse(req, timerName);
+                return client.CreateCheckStatusResponse(req, timerName);
             }
         }
 

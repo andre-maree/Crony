@@ -74,72 +74,22 @@ namespace Durable.Crony.Microservice
             }
         }
 
-        [FunctionName("SetTimerForDurableFunction")]
-        public static async Task<HttpResponseMessage> SetTimerForDurableFunctionCheck(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post", "get", Route = "SetTimerForDurableFunctionStatusCheck/{timerName}")
-            ] HttpRequestMessage req,
-            [DurableClient] IDurableOrchestrationClient starter,
-                string timerName,
-            ILogger log)
-        {
-            if (req.Method == HttpMethod.Get)
-            {
-                log.LogRetryStart(timerName);
-
-                CronyTimerByRetry GETtimer = new()
-                {
-                    Content = "wappa",
-                    Url = "https://reqbin.com/sample/get/json",
-                    HttpMethod = "get",
-                    TimerOptions = new()
-                    {
-                        BackoffCoefficient = 1.2,
-                        MaxRetryInterval = 30,
-                        MaxNumberOfAttempts = 1,
-                        Interval = 20
-                        //RetryTimeout
-                    },
-                    RetryOptions = new()
-                    {
-                        BackoffCoefficient = 1.2,
-                        MaxRetryInterval = 360,
-                        MaxNumberOfAttempts = 3,
-                        Interval = 10
-                        //RetryTimeout
-                    }
-                };
-
-                if (GETtimer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
-                {
-                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
-                }
-
-                await starter.StartNewAsync("OrchestrateTimerByRetry", timerName, (GETtimer, 0, DateTime.UtcNow));
-
-                return starter.CreateCheckStatusResponse(req, timerName);
-            }
-
-            CronyTimerByRetry timer = JsonConvert.DeserializeObject<CronyTimerByRetry>(await req.Content.ReadAsStringAsync());
-
-            if (timer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
-            {
-                return new HttpResponseMessage(HttpStatusCode.BadRequest);
-            }
-
-            await starter.StartNewAsync("OrchestrateTimerByRetry", timerName, (timer, 0, DateTime.UtcNow));
-
-            return starter.CreateCheckStatusResponse(req, timerName);
-        }
-
         //http://localhost:7078/SetTimerByRetry/XXX
         [FunctionName("SetTimerByRetry")]
         public static async Task<HttpResponseMessage> SetTimerByRetry(
                 [HttpTrigger(AuthorizationLevel.Anonymous, "post", "get", Route = "SetTimerByRetry/{timerName}")
             ] HttpRequestMessage req,
-                [DurableClient] IDurableOrchestrationClient starter,
-                string timerName,
+                [DurableClient] IDurableClient client,
+        string timerName,
                 ILogger log)
         {
+            bool? isStopped = await TerminateAndCleanup.IsStopped(timerName, client);
+
+            if(isStopped.HasValue && !isStopped.Value)
+            {
+                return new HttpResponseMessage(HttpStatusCode.Conflict);
+            }
+
             if (req.Method == HttpMethod.Get)
             {
                 log.LogRetryStart(timerName);
@@ -152,9 +102,9 @@ namespace Durable.Crony.Microservice
                     StatusCodeReplyForCompletion = 500,
                     TimerOptions = new()
                     {
-                        BackoffCoefficient = 1.05,
+                        BackoffCoefficient = 1,
                         MaxRetryInterval = 300,
-                        MaxNumberOfAttempts = 10,
+                        MaxNumberOfAttempts = 11,
                         Interval = 10
                         //RetryTimeout
                     },
@@ -173,9 +123,9 @@ namespace Durable.Crony.Microservice
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
 
-                await starter.StartNewAsync("OrchestrateTimerByRetry", timerName, (GETtimer, 0, DateTime.UtcNow));
+                await client.StartNewAsync("OrchestrateTimerByRetry", timerName, (GETtimer, 0, DateTime.UtcNow));
 
-                return starter.CreateCheckStatusResponse(req, timerName);
+                return client.CreateCheckStatusResponse(req, timerName);
             }
 
             CronyTimerByRetry timer = JsonConvert.DeserializeObject<CronyTimerByRetry>(await req.Content.ReadAsStringAsync());
@@ -185,9 +135,9 @@ namespace Durable.Crony.Microservice
                 return new HttpResponseMessage(HttpStatusCode.BadRequest);
             }
 
-            await starter.StartNewAsync("OrchestrateTimerByRetry", timerName, (timer, 0, DateTime.UtcNow));
+            await client.StartNewAsync("OrchestrateTimerByRetry", timerName, (timer, 0, DateTime.UtcNow));
 
-            return starter.CreateCheckStatusResponse(req, timerName);
+            return client.CreateCheckStatusResponse(req, timerName);
         }
 
         private static TimeSpan ComputeNextDelay(int interval, double backoffCoefficient, int maxRetryInterval, int count)//, DateTime firstAttempt)
@@ -265,6 +215,63 @@ namespace Durable.Crony.Microservice
         //        now = now.Add(ts);
         //        log.LogWarning($"{ts.ToString()}  -  {now.ToString()}");
         //    }
+        //}
+
+        //[FunctionName("SetTimerForDurableFunction")]
+        //public static async Task<HttpResponseMessage> SetTimerForDurableFunctionCheck(
+        //    [HttpTrigger(AuthorizationLevel.Anonymous, "post", "get", Route = "SetTimerForDurableFunctionStatusCheck/{timerName}")
+        //    ] HttpRequestMessage req,
+        //    [DurableClient] IDurableOrchestrationClient starter,
+        //        string timerName,
+        //    ILogger log)
+        //{
+        //    if (req.Method == HttpMethod.Get)
+        //    {
+        //        log.LogRetryStart(timerName);
+
+        //        CronyTimerByRetry GETtimer = new()
+        //        {
+        //            Content = "wappa",
+        //            Url = "https://reqbin.com/sample/get/json",
+        //            HttpMethod = "get",
+        //            TimerOptions = new()
+        //            {
+        //                BackoffCoefficient = 1.2,
+        //                MaxRetryInterval = 30,
+        //                MaxNumberOfAttempts = 1,
+        //                Interval = 20
+        //                //RetryTimeout
+        //            },
+        //            RetryOptions = new()
+        //            {
+        //                BackoffCoefficient = 1.2,
+        //                MaxRetryInterval = 360,
+        //                MaxNumberOfAttempts = 3,
+        //                Interval = 10
+        //                //RetryTimeout
+        //            }
+        //        };
+
+        //        if (GETtimer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
+        //        {
+        //            return new HttpResponseMessage(HttpStatusCode.BadRequest);
+        //        }
+
+        //        await starter.StartNewAsync("OrchestrateTimerByRetry", timerName, (GETtimer, 0, DateTime.UtcNow));
+
+        //        return starter.CreateCheckStatusResponse(req, timerName);
+        //    }
+
+        //    CronyTimerByRetry timer = JsonConvert.DeserializeObject<CronyTimerByRetry>(await req.Content.ReadAsStringAsync());
+
+        //    if (timer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
+        //    {
+        //        return new HttpResponseMessage(HttpStatusCode.BadRequest);
+        //    }
+
+        //    await starter.StartNewAsync("OrchestrateTimerByRetry", timerName, (timer, 0, DateTime.UtcNow));
+
+        //    return starter.CreateCheckStatusResponse(req, timerName);
         //}
     }
 }
