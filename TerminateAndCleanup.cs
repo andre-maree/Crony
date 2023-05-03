@@ -31,48 +31,62 @@ namespace Durable.Crony.Microservice
             }
         }
 
+        [Deterministic]
+        [FunctionName("OrchestrateCompletionWebook")]
+        public static async Task OrchestrateCompletionWebook(
+            [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger logger)
+        {
+            string name = context.GetInput<string>();
+
+            EntityId webhookId = new("Webhooks", name);
+
+            Webhook webhook = await context.CallEntityAsync<Webhook>(webhookId, "get");
+
+            if (webhook != null)
+            {
+                DurableHttpRequest durquest = new(webhook.HttpMethod,
+                                                  new Uri(webhook.Url),
+                                                  content: webhook.Content,
+                                                  httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
+                                                  {
+                                                      BackoffCoefficient = webhook.RetryOptions.BackoffCoefficient,
+                                                      MaxRetryInterval = TimeSpan.FromSeconds(webhook.RetryOptions.MaxRetryInterval),
+                                                      StatusCodesToRetry = webhook.GetRetryEnabledStatusCodes()
+                                                  },
+                                                  asynchronousPatternEnabled: webhook.PollIf202,
+                                                  timeout: TimeSpan.FromSeconds(webhook.Timeout));
+
+                await context.CallHttpAsync(durquest);
+            }
+
+            await context.PurgeInstanceHistory(name);
+
+            await context.PurgeInstanceHistory($"@webhooks@{name}");
+
+            await context.PurgeInstanceHistory(context.InstanceId);
+        }
+
         public static async Task CompleteTimer(IDurableOrchestrationContext context)//, Webhook webhook)
         {
             try
             {
-                EntityId webhookId = new("Webhooks", context.InstanceId);
-
-                Webhook webhook = await context.CallEntityAsync<Webhook>(webhookId, "get");
-
-                if (webhook != null)
-                {
-                    DurableHttpRequest durquest = new(webhook.HttpMethod,
-                                                      new Uri(webhook.Url),
-                                                      content: webhook.Content,
-                                                      httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
-                                                      {
-                                                          BackoffCoefficient = webhook.RetryOptions.BackoffCoefficient,
-                                                          MaxRetryInterval = TimeSpan.FromSeconds(webhook.RetryOptions.MaxRetryInterval),
-                                                          StatusCodesToRetry = webhook.GetRetryEnabledStatusCodes()
-                                                      },
-                                                      asynchronousPatternEnabled: webhook.PollIf202,
-                                                      timeout: TimeSpan.FromSeconds(webhook.Timeout));
-
-                    await context.CallHttpAsync(durquest);
-
-                    await context.CallEntityAsync(webhookId, "del");
-                }
+                await context.CallSubOrchestratorAsync("OrchestrateCompletionWebook", $"Completion_{context.InstanceId}", context.InstanceId);
             }
             catch (Exception ex)
             {
+                var r = 0;
                 // log error
             }
-
-            await context.PurgeInstanceHistory();
         }
 
-        public static async Task PurgeInstanceHistory(this IDurableOrchestrationContext context)
+        public static async Task PurgeInstanceHistory(this IDurableOrchestrationContext context, string instanceId)
         {
             await context.CallActivityWithRetryAsync(nameof(PurgeTimer), new Microsoft.Azure.WebJobs.Extensions.DurableTask.RetryOptions(TimeSpan.FromSeconds(5), 10)
             {
                 BackoffCoefficient = 2,
                 MaxRetryInterval = TimeSpan.FromMinutes(5),
-            }, context.InstanceId);
+            },
+            instanceId);
         }
 
         [Deterministic]
@@ -84,7 +98,7 @@ namespace Durable.Crony.Microservice
 
             if (count == 6)
             {
-                await context.PurgeInstanceHistory();
+                await context.PurgeInstanceHistory(context.InstanceId);
 
                 return;
             }
@@ -99,7 +113,7 @@ namespace Durable.Crony.Microservice
 
             if (!isStopped.HasValue)
             {
-                await context.PurgeInstanceHistory();
+                await context.PurgeInstanceHistory(context.InstanceId);
 
                 slog.LogError("Timer not found to terminate");
 
@@ -114,7 +128,7 @@ namespace Durable.Crony.Microservice
 
                     await context.CallActivityAsync(nameof(PurgeTimer), instance);
 
-                    await context.PurgeInstanceHistory();
+                    await context.PurgeInstanceHistory(context.InstanceId);
                 }
 
                 return;
