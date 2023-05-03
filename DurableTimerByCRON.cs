@@ -24,15 +24,15 @@ namespace Durable.Crony.Microservice
             ILogger slog = context.CreateReplaySafeLogger(logger);
 #endif
 
-            (TimerCRON timerObject, int count) = context.GetInput<(TimerCRON, int)>(); 
-            
+            (TimerCRON timerObject, int count) = context.GetInput<(TimerCRON, int)>();
+
             if (timerObject.MaxNumberOfAttempts <= count)
             {
 #if DEBUG
                 slog.LogCronDone(context.InstanceId);
 #endif
 
-                await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
+                await TerminateAndCleanup.CompleteTimer(context);
 
                 return;
             }
@@ -49,7 +49,7 @@ namespace Durable.Crony.Microservice
                 slog.LogCronDone(context.InstanceId);
 #endif
 
-                await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
+                await TerminateAndCleanup.CompleteTimer(context);
 
                 return;
             }
@@ -68,13 +68,13 @@ namespace Durable.Crony.Microservice
 
             try
             {
-                if ((int)await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
+                if (await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
                 {
 #if DEBUG
                     slog.LogCronDone(context.InstanceId);
 #endif
 
-                    await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
+                    await TerminateAndCleanup.CompleteTimer(context);
 
                     return;
                 }
@@ -103,6 +103,7 @@ namespace Durable.Crony.Microservice
                                                                      string timerName,
                                                                      ILogger log)
         {
+            //string[] arr = new 
             bool? isStopped = await TerminateAndCleanup.IsStopped(timerName, client);
 
             if (isStopped.HasValue && !isStopped.Value)
@@ -122,7 +123,7 @@ namespace Durable.Crony.Microservice
                     //CRON = "0 0/1 * * * ?",
                     //CRON = "0 5,55 12,13 1 MAY ? 2023", meeting reminder
                     CRON = "0/15 * * ? * * *",
-                    MaxNumberOfAttempts = 3,
+                    MaxNumberOfAttempts = 1,
                     RetryOptions = new()
                     {
                         BackoffCoefficient = 1.2,
@@ -137,6 +138,28 @@ namespace Durable.Crony.Microservice
                 {
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
+
+                if (GETtimer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
+                }
+
+                Webhook completionWebhook = new()
+                {
+                    HttpMethod = HttpMethod.Get,
+                    Url = "https://reqbin.com/sample/get/json",
+                    RetryOptions = new()
+                    {
+                        BackoffCoefficient = 1.5,
+                        Interval = 10,
+                        MaxNumberOfAttempts = 5,
+                        MaxRetryInterval = 30
+                    }
+                };
+
+                EntityId webhookId = new("Webhooks", timerName);
+
+                await client.SignalEntityAsync(webhookId, "set", operationInput: completionWebhook);
 
                 await client.StartNewAsync("OrchestrateTimerByCRON", timerName, (GETtimer, 0));
 
@@ -158,7 +181,14 @@ namespace Durable.Crony.Microservice
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
 
-                TimerCRON timer = timerModel.CopyCronModel();
+                (TimerCRON timer, Webhook webhook) = timerModel.CopyCronModel();
+
+                if (webhook != null)
+                {
+                    EntityId webhookId = new("Webhooks", timerName);
+
+                    await client.SignalEntityAsync(webhookId, "set", operationInput: webhook);
+                }
 
                 await client.StartNewAsync("OrchestrateTimerByCRON", timerName, (timer, 0));
 
@@ -170,7 +200,7 @@ namespace Durable.Crony.Microservice
 
         private static void LogCronStart(this ILogger logger, string text)
         {
-            logger.LogError($"CRON: START {text} - {DateTime.Now}");
+            logger.LogError($"CRON: START {text} - {DateTime.UtcNow}");
         }
 
 #if DEBUG

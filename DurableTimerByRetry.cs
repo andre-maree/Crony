@@ -9,6 +9,7 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using static Microsoft.AspNetCore.Hosting.Internal.HostingApplication;
 
 namespace Durable.Crony.Microservice
 {
@@ -31,7 +32,7 @@ namespace Durable.Crony.Microservice
                 slog.LogRetryDone(context.InstanceId);
 #endif
 
-                await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
+                await TerminateAndCleanup.CompleteTimer(context);
 
                 return;
             }
@@ -52,19 +53,20 @@ namespace Durable.Crony.Microservice
 
             try
             {
-                if ((int)await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
+                if (await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
                 {
 #if DEBUG
                     slog.LogRetryDone(context.InstanceId);
 #endif
 
-                    await TerminateAndCleanup.CompleteTimer(context, timerObject.CompletionWebhook);
+                    await TerminateAndCleanup.CompleteTimer(context);
 
                     return;
                 }
 
-                if (now > deadline.AddSeconds(delay.TotalSeconds)) {
-                    deadline =  now;
+                if (now > deadline.AddSeconds(delay.TotalSeconds))
+                {
+                    deadline = now;
                 }
 
                 count++;
@@ -95,7 +97,7 @@ namespace Durable.Crony.Microservice
         {
             bool? isStopped = await TerminateAndCleanup.IsStopped(timerName, client);
 
-            if(isStopped.HasValue && !isStopped.Value)
+            if (isStopped.HasValue && !isStopped.Value)
             {
                 return new HttpResponseMessage(HttpStatusCode.Conflict);
             }
@@ -109,12 +111,12 @@ namespace Durable.Crony.Microservice
                     Content = "wappa",
                     Url = "https://reqbin.com/sample/get/json",
                     HttpMethod = HttpMethod.Get,
-                    StatusCodeReplyForCompletion = 500,
+                    StatusCodeReplyForCompletion = HttpStatusCode.InternalServerError,
                     TimerOptions = new()
                     {
                         BackoffCoefficient = 1,
                         MaxRetryInterval = 300,
-                        MaxNumberOfAttempts = 11,
+                        MaxNumberOfAttempts = 1,
                         Interval = 10
                         //RetryTimeout
                     },
@@ -128,10 +130,27 @@ namespace Durable.Crony.Microservice
                     }
                 };
 
+                Webhook completionWebhook = new()
+                {
+                    HttpMethod = HttpMethod.Get,
+                    Url = "https://reqbin.com/sample/get/json",
+                    RetryOptions = new()
+                    {
+                        BackoffCoefficient = 1.5,
+                        Interval = 10,
+                        MaxNumberOfAttempts = 5,
+                        MaxRetryInterval = 30
+                    }
+                };
+
+                EntityId webhookId = new("Webhooks", timerName);
+
                 if (GETtimer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
                 {
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
+
+                await client.SignalEntityAsync(webhookId, "set", operationInput: completionWebhook);
 
                 await client.StartNewAsync("OrchestrateTimerByRetry", timerName, (GETtimer, 0, DateTime.UtcNow));
 
@@ -145,7 +164,14 @@ namespace Durable.Crony.Microservice
                 return new HttpResponseMessage(HttpStatusCode.BadRequest);
             }
 
-            TimerRetry timer = timerModel.CopyRetryModel();
+            (TimerRetry timer, Webhook webhook) = timerModel.CopyRetryModel();
+
+            if (webhook != null)
+            {
+                EntityId webhookId = new("Webhooks", timerName);
+
+                await client.SignalEntityAsync(webhookId, "set", operationInput: webhook);
+            }
 
             await client.StartNewAsync("OrchestrateTimerByRetry", timerName, (timer, 0, DateTime.UtcNow));
 
@@ -175,7 +201,7 @@ namespace Durable.Crony.Microservice
 
         private static void LogRetryStart(this ILogger logger, string text)
         {
-            logger.LogError($"RETRY: STARTED {text} - {DateTime.Now}");
+            logger.LogError($"RETRY: STARTED {text} - {DateTime.UtcNow}");
         }
 
 #if DEBUG

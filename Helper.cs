@@ -7,43 +7,22 @@ namespace Crony
 {
     public static class Helper
     {
-        public static TimerRetry CopyRetryModel(this CronyTimerRetry cronyTimer)
+        public static (TimerRetry timer, Webhook webhook) CopyRetryModel(this CronyTimerRetry cronyTimer)
         {
-            TimerRetry timerRetry = new()
-            {
-                Url = cronyTimer.Url,
-                Content = cronyTimer.Content,
-                HttpMethod = GetHttpMethod(cronyTimer.HttpMethod),
-                PollIf202 = cronyTimer.PollIf202,
-                RetryOptions = cronyTimer.RetryOptions,
-                Timeout = cronyTimer.Timeout,
-                CompletionWebhook = new()
-                {
-                    Content = cronyTimer.Content,
-                    HttpMethod = GetHttpMethod(cronyTimer.CompletionWebhook.HttpMethod),
-                    PollIf202 = cronyTimer.PollIf202,
-                    RetryOptions = cronyTimer.RetryOptions,
-                    Timeout = cronyTimer.Timeout,
-                    Url = cronyTimer.Url
-                }
-            };
+            (Timer timer, Webhook webhook) = CreateBaseTimer(cronyTimer);
 
-            foreach (var headers in cronyTimer.Headers)
-            {
-                timerRetry.Headers.Add(headers.Key, new(headers.Value));
-            };
+            TimerRetry timerRetry = (TimerRetry)timer;
 
-            foreach (var headers in cronyTimer.CompletionWebhook.Headers)
-            {
-                timerRetry.CompletionWebhook.Headers.Add(headers.Key, new(headers.Value));
-            };
+            timerRetry.TimerOptions = cronyTimer.TimerOptions;
 
-            return timerRetry;
+            return (timerRetry, webhook);
         }
 
-        public static TimerCRON CopyCronModel(this CronyTimerCRON cronyTimer)
+        private static (Timer, Webhook) CreateBaseTimer(CronyTimer cronyTimer)
         {
-            TimerCRON timerCRON = new()
+            Webhook webhook = null;
+
+            Timer timer = new()
             {
                 Url = cronyTimer.Url,
                 Content = cronyTimer.Content,
@@ -51,31 +30,57 @@ namespace Crony
                 PollIf202 = cronyTimer.PollIf202,
                 RetryOptions = cronyTimer.RetryOptions,
                 Timeout = cronyTimer.Timeout,
-                CRON = cronyTimer.CRON,
-                MaxNumberOfAttempts = cronyTimer.MaxNumberOfAttempts,
-                StatusCodeReplyForCompletion = cronyTimer.StatusCodeReplyForCompletion,
-                CompletionWebhook = new()
+                StatusCodeReplyForCompletion = (HttpStatusCode)cronyTimer.StatusCodeReplyForCompletion
+            };
+
+            if (cronyTimer.CompletionWebhook != null)
+            {
+                webhook = new()
                 {
+                    Url = cronyTimer.CompletionWebhook.Url,
                     Content = cronyTimer.Content,
                     HttpMethod = GetHttpMethod(cronyTimer.CompletionWebhook.HttpMethod),
-                    PollIf202 = cronyTimer.PollIf202,
-                    RetryOptions = cronyTimer.RetryOptions,
-                    Timeout = cronyTimer.Timeout,
-                    Url = cronyTimer.Url
-                }
-            };
+                    PollIf202 = cronyTimer.CompletionWebhook.PollIf202,
+                    Timeout = cronyTimer.CompletionWebhook.Timeout,
+                    //if (cronyTimer.CompletionWebhook.RetryOptions == null)
+                    //{
+                    //    webhook.RetryOptions = new()
+                    //    {
+                    //        BackoffCoefficient = 1,
+                    //        Interval = 1,
+                    //        MaxNumberOfAttempts = 1,
+                    //        MaxRetryInterval = 1
+                    //    };
+                    //}
+                    //else
+                    //{
+                    RetryOptions = cronyTimer.CompletionWebhook.RetryOptions
+                };
+                //}
+
+                foreach (var headers in cronyTimer.CompletionWebhook.Headers)
+                {
+                    webhook.Headers.Add(headers.Key, new(headers.Value));
+                };
+            }
 
             foreach (var headers in cronyTimer.Headers)
             {
-                timerCRON.Headers.Add(headers.Key, new(headers.Value));
+                timer.Headers.Add(headers.Key, new(headers.Value));
             };
 
-            foreach (var headers in cronyTimer.CompletionWebhook.Headers)
-            {
-                timerCRON.CompletionWebhook.Headers.Add(headers.Key, new(headers.Value));
-            };
+            return (timer, webhook);
+        }
 
-            return timerCRON;
+        public static (TimerCRON, Webhook) CopyCronModel(this CronyTimerCRON cronyTimer)
+        {
+            (Timer timer, Webhook webhook) = CreateBaseTimer(cronyTimer);
+
+            TimerCRON timerCRON = (TimerCRON)timer;
+
+            timerCRON.CRON = cronyTimer.CRON;
+
+            return (timerCRON, webhook);
         }
 
         private static HttpMethod GetHttpMethod(this string method) => method[..2].ToUpper()

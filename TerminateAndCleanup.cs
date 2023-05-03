@@ -14,37 +14,65 @@ namespace Durable.Crony.Microservice
 {
     public static class TerminateAndCleanup
     {
-        public static async Task CompleteTimer(IDurableOrchestrationContext context, Webhook webhook)
+        [FunctionName("Webhooks")]
+        public static void Counter([EntityTrigger] IDurableEntityContext ctx)
         {
-            Task cleanupTask = context.PurgeInstanceHistory();
-
-            if (webhook != null)
+            switch (ctx.OperationName.ToLowerInvariant())
             {
-                DurableHttpRequest durquest = new(webhook.HttpMethod,
-                                                  new Uri(webhook.Url),
-                                                  content: webhook.Content,
-                                                  httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
-                                                  {
-                                                      BackoffCoefficient = webhook.RetryOptions.BackoffCoefficient,
-                                                      MaxRetryInterval = TimeSpan.FromSeconds(webhook.RetryOptions.MaxRetryInterval),
-                                                      StatusCodesToRetry = webhook.GetRetryEnabledStatusCodes()
-                                                  },
-                                                  asynchronousPatternEnabled: webhook.PollIf202,
-                                                  timeout: TimeSpan.FromSeconds(webhook.Timeout));
+                case "set":
+                    ctx.SetState(ctx.GetInput<Webhook>());
+                    break;
+                case "del":
+                    ctx.DeleteState();
+                    break;
+                case "get":
+                    ctx.Return(ctx.GetState<Webhook>());
+                    break;
+            }
+        }
 
-                await context.CallHttpAsync(durquest);
+        public static async Task CompleteTimer(IDurableOrchestrationContext context)//, Webhook webhook)
+        {
+            try
+            {
+                EntityId webhookId = new("Webhooks", context.InstanceId);
+
+                Webhook webhook = await context.CallEntityAsync<Webhook>(webhookId, "get");
+
+                if (webhook != null)
+                {
+                    DurableHttpRequest durquest = new(webhook.HttpMethod,
+                                                      new Uri(webhook.Url),
+                                                      content: webhook.Content,
+                                                      httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
+                                                      {
+                                                          BackoffCoefficient = webhook.RetryOptions.BackoffCoefficient,
+                                                          MaxRetryInterval = TimeSpan.FromSeconds(webhook.RetryOptions.MaxRetryInterval),
+                                                          StatusCodesToRetry = webhook.GetRetryEnabledStatusCodes()
+                                                      },
+                                                      asynchronousPatternEnabled: webhook.PollIf202,
+                                                      timeout: TimeSpan.FromSeconds(webhook.Timeout));
+
+                    await context.CallHttpAsync(durquest);
+
+                    await context.CallEntityAsync(webhookId, "del");
+                }
+            }
+            catch (Exception ex)
+            {
+                // log error
             }
 
-            await cleanupTask;
+            await context.PurgeInstanceHistory();
         }
 
         public static async Task PurgeInstanceHistory(this IDurableOrchestrationContext context)
         {
-                await context.CallActivityWithRetryAsync(nameof(PurgeTimer), new Microsoft.Azure.WebJobs.Extensions.DurableTask.RetryOptions(TimeSpan.FromSeconds(5), 10)
-                {
-                    BackoffCoefficient = 2,
-                    MaxRetryInterval = TimeSpan.FromMinutes(5),
-                }, context.InstanceId);
+            await context.CallActivityWithRetryAsync(nameof(PurgeTimer), new Microsoft.Azure.WebJobs.Extensions.DurableTask.RetryOptions(TimeSpan.FromSeconds(5), 10)
+            {
+                BackoffCoefficient = 2,
+                MaxRetryInterval = TimeSpan.FromMinutes(5),
+            }, context.InstanceId);
         }
 
         [Deterministic]
@@ -54,7 +82,7 @@ namespace Durable.Crony.Microservice
         {
             (string instance, int count, bool delete) = context.GetInput<(string, int, bool)>();
 
-            if(count == 6)
+            if (count == 6)
             {
                 await context.PurgeInstanceHistory();
 
@@ -78,7 +106,7 @@ namespace Durable.Crony.Microservice
                 return;
             }
 
-            if(isStopped.Value)
+            if (isStopped.Value)
             {
                 if (delete)
                 {
@@ -86,7 +114,7 @@ namespace Durable.Crony.Microservice
 
                     await context.CallActivityAsync(nameof(PurgeTimer), instance);
 
-                    await context.PurgeInstanceHistory(); 
+                    await context.PurgeInstanceHistory();
                 }
 
                 return;
