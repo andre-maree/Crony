@@ -58,12 +58,6 @@ namespace Durable.Crony.Microservice
 
                 await context.CallHttpAsync(durquest);
             }
-
-            await context.PurgeInstanceHistory(name);
-
-            await context.PurgeInstanceHistory($"@webhooks@{name}");
-
-            await context.PurgeInstanceHistory(context.InstanceId);
         }
 
         public static async Task CompleteTimer(IDurableOrchestrationContext context)//, Webhook webhook)
@@ -71,6 +65,13 @@ namespace Durable.Crony.Microservice
             try
             {
                 await context.CallSubOrchestratorAsync("OrchestrateCompletionWebook", $"Completion_{context.InstanceId}", context.InstanceId);
+
+                await context.PurgeInstanceHistory($"@webhooks@{context.InstanceId}");
+
+                await context.PurgeInstanceHistory($"Completion_{context.InstanceId}");
+
+                //drop a queue message for check last date and purge
+                //await context.PurgeInstanceHistory(context.InstanceId);
             }
             catch (Exception ex)
             {
@@ -131,6 +132,8 @@ namespace Durable.Crony.Microservice
                     await context.PurgeInstanceHistory(context.InstanceId);
                 }
 
+                await context.PurgeInstanceHistory($"@webhooks@{instance}");
+
                 return;
             }
 
@@ -184,11 +187,11 @@ namespace Durable.Crony.Microservice
         public static async Task CleanupTimerTrigger([TimerTrigger("0 0 23 * * *")] TimerInfo myTimer, [DurableClient] IDurableOrchestrationClient client)
         {
             //clear non-failed history
-            //await client.PurgeInstanceHistoryAsync(DateTime.MinValue, DateTime.UtcNow.AddDays(-1),
-            //    new List<OrchestrationStatus>
-            //    {
-            //                OrchestrationStatus.Completed
-            //    });
+            await client.PurgeInstanceHistoryAsync(DateTime.MinValue, DateTime.UtcNow.AddDays(-1),
+                new List<OrchestrationStatus>
+                {
+                            OrchestrationStatus.Completed
+                });
 
             //clear failed history
             await client.PurgeInstanceHistoryAsync(
