@@ -18,6 +18,17 @@ namespace Crony
             return (timerRetry, webhook);
         }
 
+        public static (TimerCRON, Webhook) CopyCronModel(this CronyTimerCRON cronyTimer)
+        {
+            (Timer timer, Webhook webhook) = CreateBaseTimer(cronyTimer);
+
+            TimerCRON timerCRON = (TimerCRON)timer;
+
+            timerCRON.CRON = cronyTimer.CRON;
+
+            return (timerCRON, webhook);
+        }
+
         private static (Timer, Webhook) CreateBaseTimer(CronyTimer cronyTimer)
         {
             Webhook webhook = null;
@@ -42,21 +53,8 @@ namespace Crony
                     HttpMethod = GetHttpMethod(cronyTimer.CompletionWebhook.HttpMethod),
                     PollIf202 = cronyTimer.CompletionWebhook.PollIf202,
                     Timeout = cronyTimer.CompletionWebhook.Timeout,
-                    //if (cronyTimer.CompletionWebhook.RetryOptions == null)
-                    //{
-                    //    webhook.RetryOptions = new()
-                    //    {
-                    //        BackoffCoefficient = 1,
-                    //        Interval = 1,
-                    //        MaxNumberOfAttempts = 1,
-                    //        MaxRetryInterval = 1
-                    //    };
-                    //}
-                    //else
-                    //{
                     RetryOptions = cronyTimer.CompletionWebhook.RetryOptions
                 };
-                //}
 
                 foreach (var headers in cronyTimer.CompletionWebhook.Headers)
                 {
@@ -70,17 +68,6 @@ namespace Crony
             };
 
             return (timer, webhook);
-        }
-
-        public static (TimerCRON, Webhook) CopyCronModel(this CronyTimerCRON cronyTimer)
-        {
-            (Timer timer, Webhook webhook) = CreateBaseTimer(cronyTimer);
-
-            TimerCRON timerCRON = (TimerCRON)timer;
-
-            timerCRON.CRON = cronyTimer.CRON;
-
-            return (timerCRON, webhook);
         }
 
         private static HttpMethod GetHttpMethod(this string method) => method[..2].ToUpper()

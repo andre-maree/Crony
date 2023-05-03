@@ -9,7 +9,6 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using static Microsoft.AspNetCore.Hosting.Internal.HostingApplication;
 
 namespace Durable.Crony.Microservice
 {
