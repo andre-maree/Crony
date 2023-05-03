@@ -99,7 +99,8 @@ namespace Durable.Crony.Microservice
 
             if (count == 6)
             {
-                await context.PurgeInstanceHistory(context.InstanceId);
+                //drop a queue message for delete
+                //await context.PurgeInstanceHistory(context.InstanceId);
 
                 return;
             }
@@ -114,7 +115,8 @@ namespace Durable.Crony.Microservice
 
             if (!isStopped.HasValue)
             {
-                await context.PurgeInstanceHistory(context.InstanceId);
+                //drop a queue message for delete
+                //await context.PurgeInstanceHistory(context.InstanceId);
 
                 slog.LogError("Timer not found to terminate");
 
@@ -129,10 +131,11 @@ namespace Durable.Crony.Microservice
 
                     await context.CallActivityAsync(nameof(PurgeTimer), instance);
 
-                    await context.PurgeInstanceHistory(context.InstanceId);
-                }
+                    await context.PurgeInstanceHistory($"@webhooks@{instance}");
 
-                await context.PurgeInstanceHistory($"@webhooks@{instance}");
+                    //drop a queue message for delete
+                    //await context.PurgeInstanceHistory(context.InstanceId);
+                }
 
                 return;
             }
