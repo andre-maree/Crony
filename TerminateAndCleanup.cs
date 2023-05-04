@@ -9,6 +9,7 @@ using DurableTask.Core;
 using Microsoft.Extensions.Logging;
 using Crony.Models;
 using Crony;
+using Microsoft.Extensions.Primitives;
 
 namespace Durable.Crony.Microservice
 {
@@ -43,7 +44,6 @@ namespace Durable.Crony.Microservice
             {
                 DurableHttpRequest durquest = new(webhook.HttpMethod,
                                                   new Uri(webhook.Url),
-                                                  headers: webhook.Headers,
                                                   content: webhook.Content,
                                                   httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
                                                   {
@@ -53,6 +53,11 @@ namespace Durable.Crony.Microservice
                                                   },
                                                   asynchronousPatternEnabled: webhook.PollIf202,
                                                   timeout: TimeSpan.FromSeconds(webhook.Timeout));
+
+                foreach(var h in webhook.Headers)
+                {
+                    durquest.Headers.Add(h.Key, h.Value);
+                }
 
                 await context.CallHttpAsync(durquest);
             }

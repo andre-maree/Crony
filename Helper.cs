@@ -58,13 +58,13 @@ namespace Crony
 
                 foreach (var headers in cronyTimer.CompletionWebhook.Headers)
                 {
-                    webhook.Headers.Add(headers.Key, new(headers.Value));
+                    webhook.Headers.Add(headers.Key, headers.Value);
                 };
             }
 
             foreach (var headers in cronyTimer.Headers)
             {
-                timer.Headers.Add(headers.Key, new(headers.Value));
+                timer.Headers.Add(headers.Key, headers.Value);
             };
 
             return (timer, webhook);

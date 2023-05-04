@@ -139,11 +139,6 @@ namespace Crony.Timers
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
 
-                if (GETtimer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
-                {
-                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
-                }
-
                 Webhook completionWebhook = new()
                 {
                     HttpMethod = HttpMethod.Get,

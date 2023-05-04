@@ -8,7 +8,7 @@ namespace Crony.Models
     {
         public string Url { get; set; }
         public int Timeout { get; set; } = 15;
-        public Dictionary<string, Microsoft.Extensions.Primitives.StringValues> Headers { get; set; } = new();
+        public Dictionary<string, string[]> Headers { get; set; } = new();
         public HttpMethod HttpMethod { get; set; }
         public string Content { get; set; }
         public bool PollIf202 { get; set; }

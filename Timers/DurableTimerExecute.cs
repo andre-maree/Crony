@@ -36,7 +36,7 @@ namespace Crony.Timers
         {
             DurableHttpRequest durquest = new(webhook.HttpMethod,
                                               new Uri(webhook.Url),
-                                              headers: webhook.Headers,
+                                              //headers: webhook.Headers,
                                               content: webhook.Content,
                                               httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
                                               {
@@ -45,7 +45,12 @@ namespace Crony.Timers
                                                   StatusCodesToRetry = webhook.GetRetryEnabledStatusCodes()
                                               },
                                               asynchronousPatternEnabled: webhook.PollIf202,
-                                              timeout: TimeSpan.FromSeconds(webhook.Timeout));
+                                              timeout: TimeSpan.FromSeconds(webhook.Timeout)); 
+            
+            foreach (var h in webhook.Headers)
+            {
+                durquest.Headers.Add(h.Key, h.Value);
+            }
 
             DurableHttpResponse response = await context.CallHttpAsync(durquest);
 

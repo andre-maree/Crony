@@ -8,6 +8,7 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using Newtonsoft.Json;
 
 namespace Crony.Timers
@@ -112,9 +113,9 @@ namespace Crony.Timers
                     TimerOptions = new()
                     {
                         BackoffCoefficient = 1,
-                        MaxRetryInterval = 300,
+                        MaxRetryInterval = 3000,
                         MaxNumberOfAttempts = 1,
-                        Interval = 10
+                        Interval = 300,
                         //RetryTimeout
                     },
                     RetryOptions = new()
@@ -139,6 +140,10 @@ namespace Crony.Timers
                         MaxRetryInterval = 30
                     }
                 };
+
+                string[] header = new string[] { "testheadervalue" };
+
+                completionWebhook.Headers.Add("testheader", header);
 
                 EntityId webhookId = new("CompletionWebhook", timerName);
 
