@@ -2,8 +2,8 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Crony;
 using Crony.Models;
+using Durable.Crony.Microservice;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -11,14 +11,14 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Quartz;
 
-namespace Durable.Crony.Microservice
+namespace Crony.Timers
 {
     public static class DurableTimerByCRON
     {
         [Deterministic]
         [FunctionName("OrchestrateTimerByCRON")]
-        public static async Task OrchestrateTimerByCRON(
-            [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger logger)
+        public static async Task OrchestrateTimerByCRON([OrchestrationTrigger] IDurableOrchestrationContext context,
+                                                        ILogger logger)
         {
 #if DEBUG
             ILogger slog = context.CreateReplaySafeLogger(logger);
@@ -123,7 +123,7 @@ namespace Durable.Crony.Microservice
                     //CRON = "0 0/1 * * * ?",
                     //CRON = "0 5,55 12,13 1 MAY ? 2023", meeting reminder
                     CRON = "0/15 * * ? * * *",
-                    MaxNumberOfAttempts = 1,
+                    MaxNumberOfAttempts = 7,
                     RetryOptions = new()
                     {
                         BackoffCoefficient = 1.2,
@@ -157,7 +157,7 @@ namespace Durable.Crony.Microservice
                     }
                 };
 
-                EntityId webhookId = new("Webhooks", timerName);
+                EntityId webhookId = new("CompletionWebhook", timerName);
 
                 await client.SignalEntityAsync(webhookId, "set", operationInput: completionWebhook);
 

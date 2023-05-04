@@ -14,16 +14,13 @@ namespace Durable.Crony.Microservice
 {
     public static class TerminateAndCleanup
     {
-        [FunctionName("Webhooks")]
-        public static void Counter([EntityTrigger] IDurableEntityContext ctx)
+        [FunctionName("CompletionWebhook")]
+        public static void CompletionWebhook([EntityTrigger] IDurableEntityContext ctx)
         {
             switch (ctx.OperationName.ToLowerInvariant())
             {
                 case "set":
                     ctx.SetState(ctx.GetInput<Webhook>());
-                    break;
-                case "del":
-                    ctx.DeleteState();
                     break;
                 case "get":
                     ctx.Return(ctx.GetState<Webhook>());
@@ -33,12 +30,12 @@ namespace Durable.Crony.Microservice
 
         [Deterministic]
         [FunctionName("OrchestrateCompletionWebook")]
-        public static async Task OrchestrateCompletionWebook(
-            [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger logger)
+        public static async Task OrchestrateCompletionWebook([OrchestrationTrigger] IDurableOrchestrationContext context,
+                                                             ILogger logger)
         {
             string name = context.GetInput<string>();
 
-            EntityId webhookId = new("Webhooks", name);
+            EntityId webhookId = new("CompletionWebhook", name);
 
             Webhook webhook = await context.CallEntityAsync<Webhook>(webhookId, "get");
 
@@ -46,6 +43,7 @@ namespace Durable.Crony.Microservice
             {
                 DurableHttpRequest durquest = new(webhook.HttpMethod,
                                                   new Uri(webhook.Url),
+                                                  headers: webhook.Headers,
                                                   content: webhook.Content,
                                                   httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
                                                   {
@@ -62,42 +60,29 @@ namespace Durable.Crony.Microservice
 
         public static async Task CompleteTimer(IDurableOrchestrationContext context)//, Webhook webhook)
         {
-            try
-            {
-                await context.CallSubOrchestratorAsync("OrchestrateCompletionWebook", $"Completion_{context.InstanceId}", context.InstanceId);
+            await context.CallSubOrchestratorAsync("OrchestrateCompletionWebook", $"Completion_{context.InstanceId}", context.InstanceId);
 
-                await context.PurgeInstanceHistory($"@webhooks@{context.InstanceId}");
-
-                await context.PurgeInstanceHistory($"Completion_{context.InstanceId}");
-
-                //drop a queue message for check last date and purge
-                //await context.PurgeInstanceHistory(context.InstanceId);
-            }
-            catch (Exception ex)
-            {
-                var r = 0;
-                // log error
-            }
+            await context.CallActivityAsync("StartCleanup", context.InstanceId);
         }
 
-        public static async Task PurgeInstanceHistory(this IDurableOrchestrationContext context, string instanceId)
-        {
+        public static async Task PurgeInstanceHistory(this IDurableOrchestrationContext context,
+                                                      string instanceId)
+            =>
             await context.CallActivityWithRetryAsync(nameof(PurgeTimer), new Microsoft.Azure.WebJobs.Extensions.DurableTask.RetryOptions(TimeSpan.FromSeconds(5), 10)
             {
                 BackoffCoefficient = 2,
                 MaxRetryInterval = TimeSpan.FromMinutes(5),
             },
             instanceId);
-        }
 
         [Deterministic]
         [FunctionName("OrchestrateCleanup")]
-        public static async Task OrchestrateCleanup(
-            [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger logger)
+        public static async Task OrchestrateCleanup([OrchestrationTrigger] IDurableOrchestrationContext context,
+                                                    ILogger logger)
         {
             (string instance, int count, bool delete) = context.GetInput<(string, int, bool)>();
 
-            if (count == 6)
+            if (count == 20)
             {
                 //drop a queue message for delete
                 //await context.PurgeInstanceHistory(context.InstanceId);
@@ -107,7 +92,7 @@ namespace Durable.Crony.Microservice
 
             ILogger slog = context.CreateReplaySafeLogger(logger);
 
-            DateTime date = context.CurrentUtcDateTime.AddSeconds(5);
+            DateTime date = context.CurrentUtcDateTime.AddSeconds(3);
 
             await context.CreateTimer(date, default);
 
@@ -129,9 +114,13 @@ namespace Durable.Crony.Microservice
                 {
                     slog.LogError("Deleting timer history: " + instance);
 
-                    await context.CallActivityAsync(nameof(PurgeTimer), instance);
+                    var t1 = context.PurgeInstanceHistory($"@completionwebhook@{instance}");
+                    var t2 = context.PurgeInstanceHistory($"Completion_{instance}");
+                    var t3 = context.PurgeInstanceHistory(instance);
 
-                    await context.PurgeInstanceHistory($"@webhooks@{instance}");
+                    await t1;
+                    await t2;
+                    await t3;
 
                     //drop a queue message for delete
                     //await context.PurgeInstanceHistory(context.InstanceId);
@@ -147,7 +136,7 @@ namespace Durable.Crony.Microservice
 
         [FunctionName(nameof(IsStopped))]
         public static async Task<bool?> IsStopped([ActivityTrigger] string timerName,
-            [DurableClient] IDurableClient client)
+                                                  [DurableClient] IDurableClient client)
         {
             DurableOrchestrationStatus status = await client.GetStatusAsync(timerName, showInput: false);
 
@@ -161,6 +150,15 @@ namespace Durable.Crony.Microservice
                    || status.RuntimeStatus == OrchestrationRuntimeStatus.Failed;
         }
 
+        [FunctionName(nameof(StartCleanup))]
+        public static async Task StartCleanup([ActivityTrigger] string timerName,
+            [DurableClient] IDurableClient client, ILogger slog)
+        {
+            await client.StartNewAsync("OrchestrateCleanup", "delete_" + timerName, (timerName, 0, true));
+
+            slog.LogError("Timer delete started: " + timerName);
+        }
+
         [FunctionName(nameof(PurgeTimer))]
         public static async Task PurgeTimer([ActivityTrigger] string timerName,
             [DurableClient] IDurableClient client, ILogger slog)
@@ -171,10 +169,9 @@ namespace Durable.Crony.Microservice
         }
 
         [FunctionName(nameof(CancelTimer))]
-        public static async Task<HttpResponseMessage> CancelTimer(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "CancelTimer/{timerName}/{delete}")] HttpRequestMessage req,
-            [DurableClient] IDurableOrchestrationClient client,
-                string timerName)//, bool delete)
+        public static async Task<HttpResponseMessage> CancelTimer([HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "CancelTimer/{timerName}/{delete}")] HttpRequestMessage req,
+                                                                  [DurableClient] IDurableOrchestrationClient client,
+                                                                  string timerName)//, bool delete)
         {
             await client.StartNewAsync("OrchestrateCleanup", "delete_" + timerName, (timerName, 0, true));
 
@@ -184,25 +181,36 @@ namespace Durable.Crony.Microservice
         }
 
         /// <summary>
-        /// Cleanup timer trigger daily at 23:00
+        /// Cleanup timer trigger daily at 01:00
         /// </summary>
         [FunctionName(nameof(CleanupTimerTrigger))]
-        public static async Task CleanupTimerTrigger([TimerTrigger("0 0 23 * * *")] TimerInfo myTimer, [DurableClient] IDurableOrchestrationClient client)
+        public static async Task CleanupTimerTrigger([TimerTrigger("0 0 1 * * *")] TimerInfo myTimer,
+                                                     [DurableClient] IDurableOrchestrationClient client,
+                                                     ILogger logger)
         {
-            //clear non-failed history
-            await client.PurgeInstanceHistoryAsync(DateTime.MinValue, DateTime.UtcNow.AddDays(-1),
-                new List<OrchestrationStatus>
-                {
+            try
+            {
+                //clear non-failed history
+                await client.PurgeInstanceHistoryAsync(DateTime.MinValue, DateTime.UtcNow.AddDays(-1),
+                    new List<OrchestrationStatus>
+                    {
                             OrchestrationStatus.Completed
-                });
+                    });
 
-            //clear failed history
-            await client.PurgeInstanceHistoryAsync(
-                DateTime.MinValue, DateTime.UtcNow.AddDays(-7),
-                new List<OrchestrationStatus>
-                {
+                //clear failed history
+                await client.PurgeInstanceHistoryAsync(
+                    DateTime.MinValue, DateTime.UtcNow.AddDays(-7),
+                    new List<OrchestrationStatus>
+                    {
                             OrchestrationStatus.Failed
-                });
+                    });
+            }
+            catch (Exception ex)
+            {
+                Exception x = ex.GetBaseException();
+
+                logger.LogError(null, x.Message + " - " + x.GetType().Name, null);
+            }
         }
     }
 }

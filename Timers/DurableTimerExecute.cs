@@ -5,12 +5,14 @@ using Crony;
 using Crony.Models;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 
-namespace Durable.Crony.Microservice
+namespace Crony.Timers
 {
     public static class DurableTimerExecute
     {
         [Deterministic]
-        public static async Task<HttpStatusCode> ExecuteTimer(this Webhook webhook, IDurableOrchestrationContext context, DateTime deadline)
+        public static async Task<HttpStatusCode> ExecuteTimer(this Webhook webhook,
+                                                              IDurableOrchestrationContext context,
+                                                              DateTime deadline)
         {
             try
             {
@@ -29,10 +31,12 @@ namespace Durable.Crony.Microservice
         }
 
         [Deterministic]
-        private static async Task<HttpStatusCode> ExecuteTimer(this Webhook webhook, IDurableOrchestrationContext context)//, string statusUrl, bool isDurableCheck)
+        private static async Task<HttpStatusCode> ExecuteTimer(this Webhook webhook,
+                                                               IDurableOrchestrationContext context)//, string statusUrl, bool isDurableCheck)
         {
             DurableHttpRequest durquest = new(webhook.HttpMethod,
                                               new Uri(webhook.Url),
+                                              headers: webhook.Headers,
                                               content: webhook.Content,
                                               httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
                                               {
@@ -46,7 +50,7 @@ namespace Durable.Crony.Microservice
             DurableHttpResponse response = await context.CallHttpAsync(durquest);
 
             return response.StatusCode;
-        }        
+        }
 
         //monitor orch for status
         //private static async Task WaitForDurableFunctionRunning(this TimerObject timerObject, string statusUrl, IDurableOrchestrationContext context)

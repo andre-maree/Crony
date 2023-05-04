@@ -2,22 +2,22 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Crony;
 using Crony.Models;
+using Durable.Crony.Microservice;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
-namespace Durable.Crony.Microservice
+namespace Crony.Timers
 {
     public static class DurableTimerByRetry
     {
         [Deterministic]
         [FunctionName("OrchestrateTimerByRetry")]
-        public static async Task OrchestrateTimerByRetry(
-            [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger logger)
+        public static async Task OrchestrateTimerByRetry([OrchestrationTrigger] IDurableOrchestrationContext context,
+                                                         ILogger logger)
         {
 #if DEBUG
             ILogger slog = context.CreateReplaySafeLogger(logger);
@@ -87,12 +87,10 @@ namespace Durable.Crony.Microservice
 
         //http://localhost:7078/SetTimerByRetry/XXX
         [FunctionName("SetTimerByRetry")]
-        public static async Task<HttpResponseMessage> SetTimerByRetry(
-                [HttpTrigger(AuthorizationLevel.Anonymous, "post", "get", Route = "SetTimerByRetry/{timerName}")
-            ] HttpRequestMessage req,
-                [DurableClient] IDurableClient client,
-        string timerName,
-                ILogger log)
+        public static async Task<HttpResponseMessage> SetTimerByRetry([HttpTrigger(AuthorizationLevel.Anonymous, "post", "get", Route = "SetTimerByRetry/{timerName}")] HttpRequestMessage req,
+                                                                      [DurableClient] IDurableClient client,
+                                                                      string timerName,
+                                                                      ILogger log)
         {
             bool? isStopped = await TerminateAndCleanup.IsStopped(timerName, client);
 
@@ -142,7 +140,7 @@ namespace Durable.Crony.Microservice
                     }
                 };
 
-                EntityId webhookId = new("Webhooks", timerName);
+                EntityId webhookId = new("CompletionWebhook", timerName);
 
                 if (GETtimer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
                 {
@@ -177,7 +175,10 @@ namespace Durable.Crony.Microservice
             return client.CreateCheckStatusResponse(req, timerName);
         }
 
-        private static TimeSpan ComputeNextDelay(int interval, double backoffCoefficient, int maxRetryInterval, int count)//, DateTime firstAttempt)
+        private static TimeSpan ComputeNextDelay(int interval,
+                                                 double backoffCoefficient,
+                                                 int maxRetryInterval,
+                                                 int count)//, DateTime firstAttempt)
         {
             //DateTime retryExpiration = (retryOptions.RetryTimeout != TimeSpan.MaxValue)
             //    ? firstAttempt.Add(retryOptions.RetryTimeout)
@@ -185,7 +186,7 @@ namespace Durable.Crony.Microservice
 
             //if (DateTime.Now < retryExpiration)
             //    {
-            double nextDelayInMilliseconds = TimeSpan.FromSeconds(interval).TotalMilliseconds * (Math.Pow(backoffCoefficient, count));
+            double nextDelayInMilliseconds = TimeSpan.FromSeconds(interval).TotalMilliseconds * Math.Pow(backoffCoefficient, count);
 
             TimeSpan nextDelay = TimeSpan.FromMilliseconds(nextDelayInMilliseconds);
 
