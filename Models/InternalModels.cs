@@ -30,9 +30,4 @@ namespace Crony.Models
     {
         public RetryOptions TimerOptions { get; set; }
     }
-
-    public class CompletionWebhookClass
-    {
-        public Webhook CompletionWebhook { get; set; }
-    }
 }

@@ -105,7 +105,7 @@ namespace Crony.Timers
 
                 TimerRetry GETtimer = new()
                 {
-                    Content = "wappa",
+                    Content = "test content",
                     Url = "https://reqbin.com/sample/get/json",
                     HttpMethod = HttpMethod.Get,
                     StatusCodeReplyForCompletion = HttpStatusCode.InternalServerError,
@@ -113,7 +113,7 @@ namespace Crony.Timers
                     {
                         BackoffCoefficient = 1,
                         MaxRetryInterval = 15,
-                        MaxNumberOfAttempts = 20,
+                        MaxNumberOfAttempts = 3,
                         Interval = 10,
                         //RetryTimeout
                     },
