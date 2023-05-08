@@ -9,9 +9,9 @@ namespace Crony
     {
         public static (TimerRetry timer, Webhook webhook) CopyRetryModel(this CronyTimerRetry cronyTimer)
         {
-            (Timer timer, Webhook webhook) = CreateBaseTimer(cronyTimer);
+            (TimerRetry timerRetry, Webhook webhook) = CreateBaseTimer(cronyTimer);
 
-            TimerRetry timerRetry = (TimerRetry)timer;
+            //TimerRetry timerRetry = (TimerRetry)timer;
 
             timerRetry.TimerOptions = cronyTimer.TimerOptions;
 
@@ -29,11 +29,11 @@ namespace Crony
             return (timerCRON, webhook);
         }
 
-        private static (Timer, Webhook) CreateBaseTimer(CronyTimer cronyTimer)
+        private static (TimerRetry, Webhook) CreateBaseTimer(CronyTimer cronyTimer)
         {
             Webhook webhook = null;
 
-            Timer timer = new()
+            TimerRetry timer = new()
             {
                 Url = cronyTimer.Url,
                 Content = cronyTimer.Content,
@@ -56,16 +56,22 @@ namespace Crony
                     RetryOptions = cronyTimer.CompletionWebhook.RetryOptions
                 };
 
-                foreach (var headers in cronyTimer.CompletionWebhook.Headers)
+                if (cronyTimer.CompletionWebhook != null && cronyTimer.CompletionWebhook.Headers != null)
                 {
-                    webhook.Headers.Add(headers.Key, headers.Value);
-                };
+                    foreach (var headers in cronyTimer.CompletionWebhook.Headers)
+                    {
+                        webhook.Headers.Add(headers.Key, headers.Value);
+                    };
+                }
             }
 
-            foreach (var headers in cronyTimer.Headers)
+            if (cronyTimer.Headers != null)
             {
-                timer.Headers.Add(headers.Key, headers.Value);
-            };
+                foreach (var headers in cronyTimer.Headers)
+                {
+                    timer.Headers.Add(headers.Key, headers.Value);
+                };
+            }
 
             return (timer, webhook);
         }
