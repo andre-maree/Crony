@@ -9,7 +9,6 @@ using DurableTask.Core;
 using Microsoft.Extensions.Logging;
 using Crony.Models;
 using Crony;
-using Microsoft.Extensions.Primitives;
 
 namespace Durable.Crony.Microservice
 {
@@ -67,80 +66,80 @@ namespace Durable.Crony.Microservice
         {
             await context.CallSubOrchestratorAsync("OrchestrateCompletionWebook", $"Completion_{context.InstanceId}", context.InstanceId);
 
-            await context.CallActivityAsync("StartCleanup", context.InstanceId);
+            //await context.CallActivityAsync("StartCleanup", context.InstanceId);
         }
 
-        public static async Task PurgeInstanceHistory(this IDurableOrchestrationContext context,
-                                                      string instanceId)
-            =>
-            await context.CallActivityWithRetryAsync(nameof(PurgeTimer), new Microsoft.Azure.WebJobs.Extensions.DurableTask.RetryOptions(TimeSpan.FromSeconds(5), 10)
-            {
-                BackoffCoefficient = 2,
-                MaxRetryInterval = TimeSpan.FromMinutes(5),
-            },
-            instanceId);
+        //public static async Task PurgeInstanceHistory(this IDurableOrchestrationContext context,
+        //                                              string instanceId)
+        //    =>
+        //    await context.CallActivityWithRetryAsync(nameof(PurgeTimer), new Microsoft.Azure.WebJobs.Extensions.DurableTask.RetryOptions(TimeSpan.FromSeconds(5), 10)
+        //    {
+        //        BackoffCoefficient = 2,
+        //        MaxRetryInterval = TimeSpan.FromMinutes(5),
+        //    },
+        //    instanceId);
 
-        [Deterministic]
-        [FunctionName("OrchestrateCleanup")]
-        public static async Task OrchestrateCleanup([OrchestrationTrigger] IDurableOrchestrationContext context,
-                                                    ILogger logger)
-        {
-            (string instance, int count, bool delete) = context.GetInput<(string, int, bool)>();
+        //[Deterministic]
+        //[FunctionName("OrchestrateCleanup")]
+        //public static async Task OrchestrateCleanup([OrchestrationTrigger] IDurableOrchestrationContext context,
+        //                                            ILogger logger)
+        //{
+        //    (string instance, int count, bool delete) = context.GetInput<(string, int, bool)>();
 
-            if (count == 20)
-            {
-                //drop a queue message for delete
-                //await context.PurgeInstanceHistory(context.InstanceId);
+        //    if (count == 20)
+        //    {
+        //        //drop a queue message for delete
+        //        //await context.PurgeInstanceHistory(context.InstanceId);
 
-                return;
-            }
+        //        return;
+        //    }
 
-            ILogger slog = context.CreateReplaySafeLogger(logger);
+        //    ILogger slog = context.CreateReplaySafeLogger(logger);
 
-            DateTime date = context.CurrentUtcDateTime.AddSeconds(3);
+        //    DateTime date = context.CurrentUtcDateTime.AddSeconds(3);
 
-            await context.CreateTimer(date, default);
+        //    await context.CreateTimer(date, default);
 
-            bool? isStopped = await context.CallActivityAsync<bool?>(nameof(IsStopped), instance);
+        //    bool? isStopped = await context.CallActivityAsync<bool?>(nameof(IsStopped), instance);
 
-            if (!isStopped.HasValue)
-            {
-                //drop a queue message for delete
-                //await context.PurgeInstanceHistory(context.InstanceId);
+        //    if (!isStopped.HasValue)
+        //    {
+        //        //drop a queue message for delete
+        //        //await context.PurgeInstanceHistory(context.InstanceId);
 
-                slog.LogError("Timer not found to terminate");
+        //        slog.LogError("Timer not found to terminate");
 
-                return;
-            }
+        //        return;
+        //    }
 
-            if (isStopped.Value)
-            {
-                if (delete)
-                {
-                    slog.LogError("Deleting timer history: " + instance);
+        //    if (isStopped.Value)
+        //    {
+        //        if (delete)
+        //        {
+        //            slog.LogError("Deleting timer history: " + instance);
 
-                    var t1 = context.PurgeInstanceHistory($"@completionwebhook@{instance}");
-                    var t2 = context.PurgeInstanceHistory($"Completion_{instance}");
-                    var t3 = context.PurgeInstanceHistory(instance);
+        //            var t1 = context.PurgeInstanceHistory($"@completionwebhook@{instance}");
+        //            var t2 = context.PurgeInstanceHistory($"Completion_{instance}");
+        //            var t3 = context.PurgeInstanceHistory(instance);
 
-                    await t1;
-                    await t2;
-                    await t3;
+        //            await t1;
+        //            await t2;
+        //            await t3;
 
-                    //drop a queue message for delete
-                    //await context.PurgeInstanceHistory(context.InstanceId);
-                }
+        //            //drop a queue message for delete
+        //            //await context.PurgeInstanceHistory(context.InstanceId);
+        //        }
 
-                return;
-            }
+        //        return;
+        //    }
 
-            count++;
+        //    count++;
 
-            context.ContinueAsNew((instance, count));
-        }
+        //    context.ContinueAsNew((instance, count));
+        //}
 
-        [FunctionName(nameof(IsStopped))]
-        public static async Task<bool?> IsStopped([ActivityTrigger] string timerName,
+        [FunctionName(nameof(IsReady))]
+        public static async Task<bool?> IsReady([ActivityTrigger] string timerName,
                                                   [DurableClient] IDurableClient client)
         {
             DurableOrchestrationStatus status = await client.GetStatusAsync(timerName, showInput: false);
@@ -155,30 +154,30 @@ namespace Durable.Crony.Microservice
                    || status.RuntimeStatus == OrchestrationRuntimeStatus.Failed;
         }
 
-        [FunctionName(nameof(StartCleanup))]
-        public static async Task StartCleanup([ActivityTrigger] string timerName,
-            [DurableClient] IDurableClient client, ILogger slog)
-        {
-            await client.StartNewAsync("OrchestrateCleanup", "delete_" + timerName, (timerName, 0, true));
+        //[FunctionName(nameof(StartCleanup))]
+        //public static async Task StartCleanup([ActivityTrigger] string timerName,
+        //    [DurableClient] IDurableClient client, ILogger slog)
+        //{
+        //    await client.StartNewAsync("OrchestrateCleanup", "delete_" + timerName, (timerName, 0, true));
 
-            slog.LogError("Timer delete started: " + timerName);
-        }
+        //    slog.LogError("Timer delete started: " + timerName);
+        //}
 
-        [FunctionName(nameof(PurgeTimer))]
-        public static async Task PurgeTimer([ActivityTrigger] string timerName,
-            [DurableClient] IDurableClient client, ILogger slog)
-        {
-            await client.PurgeInstanceHistoryAsync(timerName);
+        //[FunctionName(nameof(PurgeTimer))]
+        //public static async Task PurgeTimer([ActivityTrigger] string timerName,
+        //    [DurableClient] IDurableClient client, ILogger slog)
+        //{
+        //    await client.PurgeInstanceHistoryAsync(timerName);
 
-            slog.LogError("Timer delete completed: " + timerName);
-        }
+        //    slog.LogError("Timer delete completed: " + timerName);
+        //}
 
         [FunctionName(nameof(CancelTimer))]
-        public static async Task<HttpResponseMessage> CancelTimer([HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "CancelTimer/{timerName}/{delete}")] HttpRequestMessage req,
+        public static async Task<HttpResponseMessage> CancelTimer([HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "CancelTimer/{timerName}")] HttpRequestMessage req,
                                                                   [DurableClient] IDurableOrchestrationClient client,
                                                                   string timerName)//, bool delete)
         {
-            await client.StartNewAsync("OrchestrateCleanup", "delete_" + timerName, (timerName, 0, true));
+            //await client.StartNewAsync("OrchestrateCleanup", "delete_" + timerName, (timerName, 0, true));
 
             await client.TerminateAsync(timerName, null);
 

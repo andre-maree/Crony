@@ -104,7 +104,7 @@ namespace Crony.Timers
                                                                      ILogger log)
         {
             //string[] arr = new 
-            bool? isStopped = await TerminateAndCleanup.IsStopped(timerName, client);
+            bool? isStopped = await TerminateAndCleanup.IsReady(timerName, client);
 
             if (isStopped.HasValue && !isStopped.Value)
             {

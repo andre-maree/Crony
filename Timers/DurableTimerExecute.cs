@@ -1,7 +1,6 @@
 using System;
 using System.Net;
 using System.Threading.Tasks;
-using Crony;
 using Crony.Models;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 

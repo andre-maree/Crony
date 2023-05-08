@@ -8,7 +8,6 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Primitives;
 using Newtonsoft.Json;
 
 namespace Crony.Timers
@@ -93,7 +92,7 @@ namespace Crony.Timers
                                                                       string timerName,
                                                                       ILogger log)
         {
-            bool? isStopped = await TerminateAndCleanup.IsStopped(timerName, client);
+            bool? isStopped = await TerminateAndCleanup.IsReady(timerName, client);
 
             if (isStopped.HasValue && !isStopped.Value)
             {
@@ -113,9 +112,9 @@ namespace Crony.Timers
                     TimerOptions = new()
                     {
                         BackoffCoefficient = 1,
-                        MaxRetryInterval = 3000,
-                        MaxNumberOfAttempts = 1,
-                        Interval = 300,
+                        MaxRetryInterval = 15,
+                        MaxNumberOfAttempts = 20,
+                        Interval = 10,
                         //RetryTimeout
                     },
                     RetryOptions = new()
@@ -217,12 +216,12 @@ namespace Crony.Timers
 
         private static void LogRetryNext(this ILogger logger, string text, DateTime now)
         {
-            logger.LogWarning($"RETRY: NEXT >>> {text} - {now}");
+            logger.LogWarning($"RETRY: NEXT >>> {text} - {now:HH:mm:ss fff}");
         }
 
         private static void LogRetryTimer(this ILogger logger, string text, DateTime now)
         {
-            logger.LogCritical($"RETRY: EXECUTING {text} - {now}");
+            logger.LogCritical($"RETRY: EXECUTING {text} - {now:HH:mm:ss fff}");
         }
 #endif
 
