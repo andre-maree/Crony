@@ -103,12 +103,12 @@ namespace Crony.Timers
             {
                 log.LogRetryStart(timerName);
 
-                TimerRetry GETtimer = new()
+                CronyTimerRetry cronyTimerRetry = new()
                 {
                     Content = "test content",
                     Url = "https://reqbin.com/sample/get/json",
-                    HttpMethod = HttpMethod.Get,
-                    StatusCodeReplyForCompletion = HttpStatusCode.InternalServerError,
+                    HttpMethod = "Get",
+                    StatusCodeReplyForCompletion = 201,
                     TimerOptions = new()
                     {
                         BackoffCoefficient = 1,
@@ -127,9 +127,9 @@ namespace Crony.Timers
                     }
                 };
 
-                Webhook completionWebhook = new()
+                CronyWebhook completionWebhook = new()
                 {
-                    HttpMethod = HttpMethod.Get,
+                    HttpMethod = "Get",
                     Url = "https://reqbin.com/sample/get/json",
                     RetryOptions = new()
                     {
@@ -144,20 +144,23 @@ namespace Crony.Timers
 
                 completionWebhook.Headers.Add("testheader", header);
 
+                (TimerRetry timerRetry, Webhook webhook2) = cronyTimerRetry.CopyRetryModel();
+
                 EntityId webhookId = new("CompletionWebhook", timerName);
 
-                if (GETtimer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
+                if (timerRetry.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
                 {
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 }
 
-                await client.SignalEntityAsync(webhookId, "set", operationInput: completionWebhook);
+                await client.SignalEntityAsync(webhookId, "set", operationInput: webhook2);
 
-                await client.StartNewAsync("OrchestrateTimerByRetry", timerName, (GETtimer, 0, DateTime.UtcNow));
+                await client.StartNewAsync("OrchestrateTimerByRetry", timerName, (timerRetry, 0, DateTime.UtcNow));
 
                 return client.CreateCheckStatusResponse(req, timerName);
             }
 
+            //{"TimerOptions":{"Interval":10,"MaxRetryInterval":15,"MaxNumberOfAttempts":3,"BackoffCoefficient":1.0},"StatusCodeReplyForCompletion":201,"CompletionWebhook":{"Url":"https://reqbin.com/sample/get/json","Timeout":15,"Headers":null,"HttpMethod":"Get","Content":null,"PollIf202":false,"RetryOptions":{"Interval":10,"MaxRetryInterval":30,"MaxNumberOfAttempts":5,"BackoffCoefficient":1.5}},"Url":"https://reqbin.com/sample/get/json","Timeout":15,"Headers":null,"HttpMethod":"Get","Content":"test content","PollIf202":false,"RetryOptions":{"Interval":5,"MaxRetryInterval":360,"MaxNumberOfAttempts":3,"BackoffCoefficient":1.2}}
             CronyTimerRetry timerModel = JsonConvert.DeserializeObject<CronyTimerRetry>(await req.Content.ReadAsStringAsync());
 
             if (timerModel.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)

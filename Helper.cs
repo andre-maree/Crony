@@ -64,16 +64,22 @@ namespace Crony
                     RetryOptions = cronyTimer.CompletionWebhook.RetryOptions
                 };
 
-                foreach (var headers in cronyTimer.CompletionWebhook.Headers)
+                if (cronyTimer.CompletionWebhook != null && cronyTimer.CompletionWebhook.Headers != null)
                 {
-                    webhook.Headers.Add(headers.Key, headers.Value);
-                };
+                    foreach (var headers in cronyTimer.CompletionWebhook.Headers)
+                    {
+                        webhook.Headers.Add(headers.Key, headers.Value);
+                    };
+                }
             }
 
-            foreach (var headers in cronyTimer.Headers)
+            if (cronyTimer.Headers != null)
             {
-                timer.Headers.Add(headers.Key, headers.Value);
-            };
+                foreach (var headers in cronyTimer.Headers)
+                {
+                    timer.Headers.Add(headers.Key, headers.Value);
+                };
+            }
 
             return (timer, webhook);
         }
