@@ -181,7 +181,7 @@ namespace Durable.Crony.Microservice
 
             await client.TerminateAsync(timerName, null);
 
-            return client.CreateCheckStatusResponse(req, "delete_" + timerName);
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
         }
 
         /// <summary>

@@ -169,7 +169,7 @@ namespace Crony.Timers
 
             if (webhook != null)
             {
-                EntityId webhookId = new("Webhooks", timerName);
+                EntityId webhookId = new("CompletionWebhook", timerName);
 
                 await client.SignalEntityAsync(webhookId, "set", operationInput: webhook);
             }

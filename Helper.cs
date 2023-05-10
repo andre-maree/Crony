@@ -9,9 +9,9 @@ namespace Crony
     {
         public static (TimerRetry timer, Webhook webhook) CopyRetryModel(this CronyTimerRetry cronyTimer)
         {
-            (Timer timer, Webhook webhook) = CreateBaseTimer(cronyTimer);
+            (Timer timer, Webhook webhook) = CreateBaseTimer(cronyTimer, true);
 
-            TimerRetry timerRetry = (TimerRetry)timer;
+            TimerRetry timerRetry = timer as TimerRetry;
 
             timerRetry.TimerOptions = cronyTimer.TimerOptions;
 
@@ -20,29 +20,37 @@ namespace Crony
 
         public static (TimerCRON, Webhook) CopyCronModel(this CronyTimerCRON cronyTimer)
         {
-            (Timer timer, Webhook webhook) = CreateBaseTimer(cronyTimer);
+            (Timer timer, Webhook webhook) = CreateBaseTimer(cronyTimer, false);
 
-            TimerCRON timerCRON = (TimerCRON)timer;
+            TimerCRON timerCRON = timer as TimerCRON;
 
             timerCRON.CRON = cronyTimer.CRON;
+            timerCRON.MaxNumberOfAttempts = cronyTimer.MaxNumberOfAttempts;
 
             return (timerCRON, webhook);
         }
 
-        private static (Timer, Webhook) CreateBaseTimer(CronyTimer cronyTimer)
+        private static (Timer, Webhook) CreateBaseTimer(CronyTimer cronyTimer, bool isRetry)
         {
             Webhook webhook = null;
+            Timer timer;
 
-            Timer timer = new()
+            if (isRetry)
             {
-                Url = cronyTimer.Url,
-                Content = cronyTimer.Content,
-                HttpMethod = GetHttpMethod(cronyTimer.HttpMethod),
-                PollIf202 = cronyTimer.PollIf202,
-                RetryOptions = cronyTimer.RetryOptions,
-                Timeout = cronyTimer.Timeout,
-                StatusCodeReplyForCompletion = (HttpStatusCode)cronyTimer.StatusCodeReplyForCompletion
-            };
+                timer = new TimerRetry();
+            }
+            else
+            {
+                timer = new TimerCRON();
+            }
+
+            timer.Url = cronyTimer.Url;
+            timer.Content = cronyTimer.Content;
+            timer.HttpMethod = cronyTimer.HttpMethod.GetHttpMethod();
+            timer.PollIf202 = cronyTimer.PollIf202;
+            timer.RetryOptions = cronyTimer.RetryOptions;
+            timer.Timeout = cronyTimer.Timeout;
+            timer.StatusCodeReplyForCompletion = (HttpStatusCode)cronyTimer.StatusCodeReplyForCompletion;
 
             if (cronyTimer.CompletionWebhook != null)
             {
@@ -50,7 +58,7 @@ namespace Crony
                 {
                     Url = cronyTimer.CompletionWebhook.Url,
                     Content = cronyTimer.Content,
-                    HttpMethod = GetHttpMethod(cronyTimer.CompletionWebhook.HttpMethod),
+                    HttpMethod = cronyTimer.CompletionWebhook.HttpMethod.GetHttpMethod(),
                     PollIf202 = cronyTimer.CompletionWebhook.PollIf202,
                     Timeout = cronyTimer.CompletionWebhook.Timeout,
                     RetryOptions = cronyTimer.CompletionWebhook.RetryOptions
