@@ -19,8 +19,8 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
 
 ### Crony Timer API:
 ```
-[POST] SetTimerByRetry => CronyTimerCRON
-[POST] SetTimerByCRON => CronyTimerRetry
+[POST] SetTimerByRetry
+[POST] SetTimerByCRON
 ```
 
 ### Interval timing behaviour:
