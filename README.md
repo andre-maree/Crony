@@ -26,7 +26,7 @@ Crony Timer API:
 #### Interval timing behaviour:
 
 - When an interval is executing and calling an API and the API is taking some time to return, the timer will not overlap and execute agian. It will wait for the current interval execution to complete and then calculate the next interval time form after the last completed interval execution. This prevents that calls overlap.
-- There is a pollimg interval that is set to a maximum of 10 seconds when running in the Azure Functions Serverless plan. This means that the interval will execute any time within the 10 second timespan, and not necesarrily exactly on the second.
+- There is a pollimg interval that is set to a maximum of 10 seconds when running in the Azure Functions Serverless plan. This means that the interval will execute any time within the 10 second timespan, and not necessarily exactly on the second.
 
 #### Retry Timer example POST:
 
