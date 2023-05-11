@@ -98,97 +98,100 @@ namespace Crony.Timers
 
         //http://localhost:7078/SetTimerByCRON/cron-ZZZ
         [FunctionName("SetTimerByCRON")]
-        public static async Task<HttpResponseMessage> SetTimerByCRON([HttpTrigger(AuthorizationLevel.Anonymous, "post", "get", Route = "SetTimerByCRON/{timerName}")] HttpRequestMessage req,
+        public static async Task<HttpResponseMessage> SetTimerByCRON([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "SetTimerByCRON")] HttpRequestMessage req,
                                                                      [DurableClient] IDurableClient client,
-                                                                     string timerName,
                                                                      ILogger log)
         {
             //string[] arr = new 
-            bool? isStopped = await TerminateAndCleanup.IsReady(timerName, client);
+
+
+            //if (req.Method == HttpMethod.Get)
+            //{
+            //    log.LogCronStart(timerName);
+
+            //    TimerCRON GETtimer = new()
+            //    {
+            //        Content = "wappa",
+            //        Url = "https://reqbin.com/sample/get/json",
+            //        HttpMethod = HttpMethod.Get,
+            //        //CRON = "0 0/1 * * * ?",
+            //        //CRON = "0 5,55 12,13 1 MAY ? 2023", meeting reminder
+            //        CRON = "0/15 * * ? * * *",
+            //        MaxNumberOfAttempts = 7,
+            //        RetryOptions = new()
+            //        {
+            //            BackoffCoefficient = 1.2,
+            //            MaxRetryInterval = 360,
+            //            MaxNumberOfAttempts = 20,
+            //            Interval = 5
+            //            //RetryTimeout
+            //        }
+            //    };
+
+            //    if (GETtimer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
+            //    {
+            //        return new HttpResponseMessage(HttpStatusCode.BadRequest);
+            //    }
+
+            //    Webhook completionWebhook = new()
+            //    {
+            //        HttpMethod = HttpMethod.Get,
+            //        Url = "https://reqbin.com/sample/get/json",
+            //        RetryOptions = new()
+            //        {
+            //            BackoffCoefficient = 1.5,
+            //            Interval = 10,
+            //            MaxNumberOfAttempts = 5,
+            //            MaxRetryInterval = 30
+            //        }
+            //    };
+
+            //    EntityId webhookId = new("CompletionWebhook", timerName);
+
+            //    await client.SignalEntityAsync(webhookId, "set", operationInput: completionWebhook);
+
+            //    await client.StartNewAsync("OrchestrateTimerByCRON", timerName, (GETtimer, 0));
+
+            //    return client.CreateCheckStatusResponse(req, timerName);
+            //}
+            //else
+            //{
+            CronyTimerCRON timerModel = JsonConvert.DeserializeObject<CronyTimerCRON>(await req.Content.ReadAsStringAsync());
+
+            bool? isStopped = await TerminateAndCleanup.IsReady(timerModel.Name, client);
 
             if (isStopped.HasValue && !isStopped.Value)
             {
                 return new HttpResponseMessage(HttpStatusCode.Conflict);
             }
 
-            if (req.Method == HttpMethod.Get)
+            CronExpression expression = new(timerModel.CRON);
+
+            if (expression.GetNextValidTimeAfter(DateTime.UtcNow) == null)
             {
-                log.LogCronStart(timerName);
-
-                TimerCRON GETtimer = new()
-                {
-                    Content = "wappa",
-                    Url = "https://reqbin.com/sample/get/json",
-                    HttpMethod = HttpMethod.Get,
-                    //CRON = "0 0/1 * * * ?",
-                    //CRON = "0 5,55 12,13 1 MAY ? 2023", meeting reminder
-                    CRON = "0/15 * * ? * * *",
-                    MaxNumberOfAttempts = 7,
-                    RetryOptions = new()
-                    {
-                        BackoffCoefficient = 1.2,
-                        MaxRetryInterval = 360,
-                        MaxNumberOfAttempts = 20,
-                        Interval = 5
-                        //RetryTimeout
-                    }
-                };
-
-                if (GETtimer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
-                {
-                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
-                }
-
-                Webhook completionWebhook = new()
-                {
-                    HttpMethod = HttpMethod.Get,
-                    Url = "https://reqbin.com/sample/get/json",
-                    RetryOptions = new()
-                    {
-                        BackoffCoefficient = 1.5,
-                        Interval = 10,
-                        MaxNumberOfAttempts = 5,
-                        MaxRetryInterval = 30
-                    }
-                };
-
-                EntityId webhookId = new("CompletionWebhook", timerName);
-
-                await client.SignalEntityAsync(webhookId, "set", operationInput: completionWebhook);
-
-                await client.StartNewAsync("OrchestrateTimerByCRON", timerName, (GETtimer, 0));
-
-                return client.CreateCheckStatusResponse(req, timerName);
+                return new HttpResponseMessage(HttpStatusCode.BadRequest);
             }
-            else
+
+            if (timerModel.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
             {
-                CronyTimerCRON timerModel = JsonConvert.DeserializeObject<CronyTimerCRON>(await req.Content.ReadAsStringAsync());
-
-                CronExpression expression = new(timerModel.CRON);
-
-                if (expression.GetNextValidTimeAfter(DateTime.UtcNow) == null)
-                {
-                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
-                }
-
-                if (timerModel.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
-                {
-                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
-                }
-
-                (TimerCRON timer, Webhook webhook) = timerModel.CopyCronModel();
-
-                if (webhook != null)
-                {
-                    EntityId webhookId = new("CompletionWebhook", timerName);
-
-                    await client.SignalEntityAsync(webhookId, "set", operationInput: webhook);
-                }
-
-                await client.StartNewAsync("OrchestrateTimerByCRON", timerName, (timer, 0));
-
-                return client.CreateCheckStatusResponse(req, timerName);
+                return new HttpResponseMessage(HttpStatusCode.BadRequest);
             }
+
+            (TimerCRON timer, Webhook webhook) = timerModel.CopyCronModel();
+
+            if (webhook != null)
+            {
+                EntityId webhookId = new("CompletionWebhook", timerModel.Name);
+
+                await client.SignalEntityAsync(webhookId, "set", operationInput: webhook);
+            }
+
+            log.LogCronStart(timerModel.Name);
+
+            await client.StartNewAsync("OrchestrateTimerByCRON", timerModel.Name, (timer, 0));
+
+            return client.CreateCheckStatusResponse(req, timerModel.Name);
+            //}
         }
 
         #region Logging

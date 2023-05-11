@@ -91,6 +91,9 @@ namespace Crony
             "PO" => HttpMethod.Post,
             "PU" => HttpMethod.Put,
             "DE" => HttpMethod.Delete,
+            "PA" => HttpMethod.Patch,
+            "OP" => HttpMethod.Options,
+            "HE" => HttpMethod.Head,
             _ => HttpMethod.Get
         };
 

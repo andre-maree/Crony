@@ -15,50 +15,139 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
 - Quartz.NET is used for CRON calculations: https://www.freeformatter.com/cron-expression-generator-quartz.html
 - When running in a serverless function app plan, the queue polling will be fixed to 10 seconds.
 - Minimum polling intervals: 10 seconds for a ByRetry timer and 15 seconds for a CRON timer.
+- When a timer is started by posting to the appropriate API, use the built in webhooks that is return in the payload to terminate, suspend and resume a timer instance:
 
 Crony Timer API:
 ```
 [POST] SetTimerByRetry => CronyTimerCRON
 [POST] SetTimerByCRON => CronyTimerRetry
-[DELETE] CancelTimer/{timerName} => string timerName
 ```
 
-The timer model classes:
-```csharp
+#### Interval timing behaviour:
+
+- When an interval is executing and calling an API and the API is taking some time to return, the timer will not overlap and execute agian. It will wait for the current interval execution to complete and then calculate the next interval time form after the last completed interval execution. This prevents that calls overlap.
+- There is a pollimg interval that is set to a maximum of 10 seconds when running in the Azure Functions Serverless plan. This means that the interval will execute any time within the 10 second timespan, and not necesarrily exactly on the second.
+
+#### Retry Timer example POST:
+
+POST Url: http://{yourDomain}/SetTimerByRetry
+
+This will start a new timer with an interval of 10 seconds and will execute 3 times as set by MaxNumberOfAttempts. Reqbin.com is used for test API calls. This will execute every 10 seconds from when it started:
+
+```json
 // NOTE: All time values are in seconds.
-public class CronyWebhook
 {
-    public string Url { get; set; }
-    public int Timeout { get; set; } = 15;
-    public Dictionary<string, string[]> Headers { get; set; } = new();
-    public string HttpMethod { get; set; }
-    public string Content { get; set; }
-    public bool PollIf202 { get; set; }
-    public RetryOptions RetryOptions { get; set; }
+  "Name": "Test-Retry-Timer",
+  "Url": "https://reqbin.com/sample/get/json",
+  "HttpMethod": "GET",
+  "Content": "test content",
+  "PollIf202": false,
+  "StatusCodeReplyForCompletion": 500,
+  "Timeout": 15,
+  "TimerOptions": {
+    "Interval": 10,
+    "MaxRetryInterval": 15,
+    "MaxNumberOfAttempts": 3,
+    "BackoffCoefficient": 1.0
+  },
+  "Headers": {
+    "testheader": [
+      "testheadervalue"
+    ]
+  },
+  "RetryOptions": {
+    "Interval": 5,
+    "MaxRetryInterval": 360,
+    "MaxNumberOfAttempts": 3,
+    "BackoffCoefficient": 1.2
+  },
+  "CompletionWebhook": {
+    "Url": "https://reqbin.com/sample/get/json",
+    "Timeout": 15,
+    "HttpMethod": "GET",
+    "Content": null,
+    "PollIf202": false,
+    "Headers": {
+      "testheader": [
+        "testheadervalue"
+      ]
+    },
+    "RetryOptions": {
+      "Interval": 10,
+      "MaxRetryInterval": 30,
+      "MaxNumberOfAttempts": 5,
+      "BackoffCoefficient": 1.5
+    }
+  }
 }
+```
+#### CRON Timer example POST:
 
-public class CronyTimer : CronyWebhook
+POST Url: http://{yourDomain}/SetTimerByCRON
+
+This will start a new timer with an interval of 15 seconds and will execute 3 times as set by MaxNumberOfAttempts. Reqbin.com is used for test API calls. This will execute on every 15th second of a minute:
+
+```json
+// NOTE: All time values are in seconds.
 {
-    public int StatusCodeReplyForCompletion { get; set; }
-    public CronyWebhook CompletionWebhook { get; set; }
+  "Name": "CronZZZ",
+  "CRON": "0/15 * * ? * * *",
+  "HttpMethod": "GET",
+  "Content": "test content",
+  "PollIf202": false,
+  "MaxNumberOfAttempts": 3,
+  "StatusCodeReplyForCompletion": 201,
+  "Url": "https://reqbin.com/sample/get/json",
+  "Timeout": 15,
+  "Headers": {
+    "testheader": [
+      "testheadervalue"
+    ]
+  },
+  "RetryOptions": {
+    "Interval": 5,
+    "MaxRetryInterval": 360,
+    "MaxNumberOfAttempts": 3,
+    "BackoffCoefficient": 1.2
+  },
+  "CompletionWebhook": {
+    "Url": "https://reqbin.com/sample/get/json",
+    "HttpMethod": "GET",
+    "Content": null,
+    "PollIf202": false,
+    "Timeout": 15,
+    "Headers": {
+      "testheader": [
+        "testheadervalue"
+      ]
+    },
+    "RetryOptions": {
+      "Interval": 10,
+      "MaxRetryInterval": 30,
+      "MaxNumberOfAttempts": 5,
+      "BackoffCoefficient": 1.5
+    }
+  }
 }
+```
 
-public class CronyTimerCRON : CronyTimer
-{
-    public string CRON { get; set; }
-    public int MaxNumberOfAttempts { get; set; }
-}
+#### Example response from posting to start a new timer:
 
-public class CronyTimerRetry : CronyTimer
-{
-    public RetryOptions TimerOptions { get; set; }
-}
+- "id" Is the name of the timer.
+- Use "statusQueryGetUri" to get the current running status of the timer.
+- Use "terminatePostUri" to cancel the timer.
+- Use "suspendPostUri" to pause the timer from execution.
+- Use "resumePostUri" to resume the suspended timer.
 
-public class RetryOptions
+```json
 {
-    public int Interval { get; set; }
-    public int MaxRetryInterval { get; set; }
-    public int MaxNumberOfAttempts { get; set; }
-    public double BackoffCoefficient { get; set; }
+    "id": "CronZZZ",
+    "statusQueryGetUri": "http://localhost:7078/runtime/webhooks/durabletask/instances/CronZZZ?taskHub=DurableTimerTaskHub4&connection=Storage&code=7GhJy5v1tLH3LSCQJhP2sUl4Hrjl-9-JVQIlBp1KR1JdAzFunD2mcA==",
+    "sendEventPostUri": "http://localhost:7078/runtime/webhooks/durabletask/instances/CronZZZ/raiseEvent/{eventName}?taskHub=DurableTimerTaskHub4&connection=Storage&code=7GhJy5v1tLH3LSCQJhP2sUl4Hrjl-9-JVQIlBp1KR1JdAzFunD2mcA==",
+    "terminatePostUri": "http://localhost:7078/runtime/webhooks/durabletask/instances/CronZZZ/terminate?reason={text}&taskHub=DurableTimerTaskHub4&connection=Storage&code=7GhJy5v1tLH3LSCQJhP2sUl4Hrjl-9-JVQIlBp1KR1JdAzFunD2mcA==",
+    "purgeHistoryDeleteUri": "http://localhost:7078/runtime/webhooks/durabletask/instances/CronZZZ?taskHub=DurableTimerTaskHub4&connection=Storage&code=7GhJy5v1tLH3LSCQJhP2sUl4Hrjl-9-JVQIlBp1KR1JdAzFunD2mcA==",
+    "restartPostUri": "http://localhost:7078/runtime/webhooks/durabletask/instances/CronZZZ/restart?taskHub=DurableTimerTaskHub4&connection=Storage&code=7GhJy5v1tLH3LSCQJhP2sUl4Hrjl-9-JVQIlBp1KR1JdAzFunD2mcA==",
+    "suspendPostUri": "http://localhost:7078/runtime/webhooks/durabletask/instances/CronZZZ/suspend?reason={text}&taskHub=DurableTimerTaskHub4&connection=Storage&code=7GhJy5v1tLH3LSCQJhP2sUl4Hrjl-9-JVQIlBp1KR1JdAzFunD2mcA==",
+    "resumePostUri": "http://localhost:7078/runtime/webhooks/durabletask/instances/CronZZZ/resume?reason={text}&taskHub=DurableTimerTaskHub4&connection=Storage&code=7GhJy5v1tLH3LSCQJhP2sUl4Hrjl-9-JVQIlBp1KR1JdAzFunD2mcA=="
 }
 ```

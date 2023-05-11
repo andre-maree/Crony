@@ -4,6 +4,7 @@ namespace Crony.Models
 {
     public class CronyWebhook
     {
+        public string Name { get; set; }
         public string Url { get; set; }
         public int Timeout { get; set; } = 15;
         public Dictionary<string, string[]> Headers { get; set; } = new();
