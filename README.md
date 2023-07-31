@@ -13,22 +13,22 @@ Crony is a Durable Function timer scheduler service that can call a webhook that
 - Use a timer naming convention to query timers by name prefix. Timer name example: "MyApp_MyReminderTimer_00000000000031".
 - The timer by CRON expression can be set to have a maximum number of webhook triggers. This is an added feature to normal CRON expressions.
 - Quartz.NET is used for CRON calculations: https://www.freeformatter.com/cron-expression-generator-quartz.html
-- When running in a serverless function app plan, the queue polling will be fixed to 10 seconds.
-- Minimum polling intervals: 10 seconds for a ByRetry timer and 15 seconds for a CRON timer.
-- When a timer is started by posting to the appropriate API, use the built in webhooks that is return in the payload to terminate, suspend and resume a timer instance:
+- When running in a serverless function app plan, the queue polling will be fixed to 10 seconds. When deployed to an App Service, the polling interval maximum can be set as needed.
+- Minimum polling intervals: 10 seconds for a ByRetry timer and 15 seconds for a CRON timer. A timer interval of 1 second has been tested and ran successfully. Note the interval timing behaviour as described below.
+- When a timer is started by posting to the appropriate API, use the built in webhooks that is returned in the payload to terminate, suspend and resume a timer instance.
 
-Crony Timer API:
+### Crony Timer API:
 ```
-[POST] SetTimerByRetry => CronyTimerCRON
-[POST] SetTimerByCRON => CronyTimerRetry
+[POST] SetTimerByRetry
+[POST] SetTimerByCRON
 ```
 
-#### Interval timing behaviour:
+### Interval timing behaviour:
 
-- When an interval is executing and calling an API and the API is taking some time to return, the timer will not overlap and execute agian. It will wait for the current interval execution to complete and then calculate the next interval time form after the last completed interval execution. This prevents that calls overlap.
-- There is a pollimg interval that is set to a maximum of 10 seconds when running in the Azure Functions Serverless plan. This means that the interval will execute any time within the 10 second timespan, and not necesarrily exactly on the second.
+- When an interval is executing and calling an API and the API is taking some time to return, the timer will not overlap and execute agian. It will wait for the current interval execution to complete and then calculate the next interval time from after the last completed interval execution. Therefor calls will not overlap.
+- There is a polling interval that is set to a maximum of 10 seconds when running in the Azure Functions Serverless plan. This means that the interval will execute any time within the 10 second timespan, and not necessarily exactly on the second.
 
-#### Retry Timer example POST:
+### Retry Timer example POST:
 
 POST Url: http://{yourDomain}/SetTimerByRetry
 
@@ -81,7 +81,7 @@ This will start a new timer with an interval of 10 seconds and will execute 3 ti
   }
 }
 ```
-#### CRON Timer example POST:
+### CRON Timer example POST:
 
 POST Url: http://{yourDomain}/SetTimerByCRON
 
@@ -131,7 +131,7 @@ This will start a new timer with an interval of 15 seconds and will execute 3 ti
 }
 ```
 
-#### Example response from posting to start a new timer:
+### Example response from posting to start a new timer:
 
 - "id" Is the name of the timer.
 - Use "statusQueryGetUri" to get the current running status of the timer.
