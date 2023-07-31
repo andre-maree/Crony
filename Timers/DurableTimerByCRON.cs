@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Azure.Storage.Blobs;
 using Crony.Models;
 using Durable.Crony.Microservice;
 using Microsoft.Azure.WebJobs;
@@ -24,7 +25,7 @@ namespace Crony.Timers
             ILogger slog = context.CreateReplaySafeLogger(logger);
 #endif
 
-            (TimerCRON timerObject, int count) = context.GetInput<(TimerCRON, int)>();
+            (TimerCRON timerObject, int count, bool hasWebhook) = context.GetInput<(TimerCRON, int, bool)>();
 
             if (timerObject.MaxNumberOfAttempts <= count)
             {
@@ -32,7 +33,10 @@ namespace Crony.Timers
                 slog.LogCronDone(context.InstanceId);
 #endif
 
-                await TerminateAndCleanup.CompleteTimer(context);
+                if (hasWebhook)
+                {
+                    await TerminateAndCleanup.CompleteTimer(context);
+                }
 
                 return;
             }
@@ -49,7 +53,10 @@ namespace Crony.Timers
                 slog.LogCronDone(context.InstanceId);
 #endif
 
-                await TerminateAndCleanup.CompleteTimer(context);
+                if (hasWebhook)
+                {
+                    await TerminateAndCleanup.CompleteTimer(context);
+                }
 
                 return;
             }
@@ -81,7 +88,7 @@ namespace Crony.Timers
 
                 count++;
 
-                context.ContinueAsNew((timerObject, count));
+                context.ContinueAsNew((timerObject, count, hasWebhook));
             }
             catch (HttpRequestException ex)
             {
@@ -96,66 +103,11 @@ namespace Crony.Timers
             }
         }
 
-        //http://localhost:7078/SetTimerByCRON/cron-ZZZ
         [FunctionName("SetTimerByCRON")]
         public static async Task<HttpResponseMessage> SetTimerByCRON([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "SetTimerByCRON")] HttpRequestMessage req,
                                                                      [DurableClient] IDurableClient client,
                                                                      ILogger log)
         {
-            //string[] arr = new 
-
-
-            //if (req.Method == HttpMethod.Get)
-            //{
-            //    log.LogCronStart(timerName);
-
-            //    TimerCRON GETtimer = new()
-            //    {
-            //        Content = "wappa",
-            //        Url = "https://reqbin.com/sample/get/json",
-            //        HttpMethod = HttpMethod.Get,
-            //        //CRON = "0 0/1 * * * ?",
-            //        //CRON = "0 5,55 12,13 1 MAY ? 2023", meeting reminder
-            //        CRON = "0/15 * * ? * * *",
-            //        MaxNumberOfAttempts = 7,
-            //        RetryOptions = new()
-            //        {
-            //            BackoffCoefficient = 1.2,
-            //            MaxRetryInterval = 360,
-            //            MaxNumberOfAttempts = 20,
-            //            Interval = 5
-            //            //RetryTimeout
-            //        }
-            //    };
-
-            //    if (GETtimer.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
-            //    {
-            //        return new HttpResponseMessage(HttpStatusCode.BadRequest);
-            //    }
-
-            //    Webhook completionWebhook = new()
-            //    {
-            //        HttpMethod = HttpMethod.Get,
-            //        Url = "https://reqbin.com/sample/get/json",
-            //        RetryOptions = new()
-            //        {
-            //            BackoffCoefficient = 1.5,
-            //            Interval = 10,
-            //            MaxNumberOfAttempts = 5,
-            //            MaxRetryInterval = 30
-            //        }
-            //    };
-
-            //    EntityId webhookId = new("CompletionWebhook", timerName);
-
-            //    await client.SignalEntityAsync(webhookId, "set", operationInput: completionWebhook);
-
-            //    await client.StartNewAsync("OrchestrateTimerByCRON", timerName, (GETtimer, 0));
-
-            //    return client.CreateCheckStatusResponse(req, timerName);
-            //}
-            //else
-            //{
             CronyTimerCRON timerModel = JsonConvert.DeserializeObject<CronyTimerCRON>(await req.Content.ReadAsStringAsync());
 
             bool? isStopped = await TerminateAndCleanup.IsReady(timerModel.Name, client);
@@ -179,19 +131,36 @@ namespace Crony.Timers
 
             (TimerCRON timer, Webhook webhook) = timerModel.CopyCronModel();
 
-            if (webhook != null)
-            {
-                EntityId webhookId = new("CompletionWebhook", timerModel.Name);
+            bool hasWebhook = webhook != null;
 
-                await client.SignalEntityAsync(webhookId, "set", operationInput: webhook);
+            if (hasWebhook)
+            {
+                BlobServiceClient service = new(Environment.GetEnvironmentVariable("AzureWebJobsStorage"));
+
+                BlobContainerClient container = service.GetBlobContainerClient("crony-webhooks");
+
+                BlobClient blob = container.GetBlobClient(timerModel.Name);
+
+                try
+                {
+                    await blob.UploadAsync(BinaryData.FromObjectAsJson(webhook));
+                }
+                catch (Azure.RequestFailedException ex)
+                {
+                    if (ex.Status == 404)
+                    {
+                        await container.CreateIfNotExistsAsync();
+
+                        await blob.UploadAsync(BinaryData.FromObjectAsJson(webhook));
+                    }
+                }
             }
 
             log.LogCronStart(timerModel.Name);
 
-            await client.StartNewAsync("OrchestrateTimerByCRON", timerModel.Name, (timer, 0));
+            await client.StartNewAsync("OrchestrateTimerByCRON", timerModel.Name, (timer, 0, hasWebhook));
 
             return client.CreateCheckStatusResponse(req, timerModel.Name);
-            //}
         }
 
         #region Logging

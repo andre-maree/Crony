@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Azure.Storage.Blobs;
 using Crony.Models;
 using Durable.Crony.Microservice;
 using Microsoft.Azure.WebJobs;
@@ -23,7 +24,7 @@ namespace Crony.Timers
             ILogger slog = context.CreateReplaySafeLogger(logger);
 #endif
 
-            (TimerRetry timerObject, int count, DateTime deadline) = context.GetInput<(TimerRetry, int, DateTime)>();
+            (TimerRetry timerObject, int count, DateTime deadline, bool hasWebhook) = context.GetInput<(TimerRetry, int, DateTime, bool)>();
 
             if (timerObject.TimerOptions.MaxNumberOfAttempts <= count)
             {
@@ -31,7 +32,10 @@ namespace Crony.Timers
                 slog.LogRetryDone(context.InstanceId);
 #endif
 
-                await TerminateAndCleanup.CompleteTimer(context);
+                if (hasWebhook)
+                {
+                    await TerminateAndCleanup.CompleteTimer(context);
+                }
 
                 return;
             }
@@ -58,7 +62,10 @@ namespace Crony.Timers
                     slog.LogRetryDone(context.InstanceId);
 #endif
 
-                    await TerminateAndCleanup.CompleteTimer(context);
+                    if (hasWebhook)
+                    {
+                        await TerminateAndCleanup.CompleteTimer(context);
+                    }
 
                     return;
                 }
@@ -70,7 +77,7 @@ namespace Crony.Timers
 
                 count++;
 
-                context.ContinueAsNew((timerObject, count, deadline));//.AddSeconds(timerObject.WebhookRetryOptions.Interval) <= now ? now : deadline));
+                context.ContinueAsNew((timerObject, count, deadline, hasWebhook));//.AddSeconds(timerObject.WebhookRetryOptions.Interval) <= now ? now : deadline));
             }
             catch (HttpRequestException ex)
             {
@@ -85,83 +92,19 @@ namespace Crony.Timers
             }
         }
 
-        //http://localhost:7078/SetTimerByRetry/XXX
         [FunctionName("SetTimerByRetry")]
         public static async Task<HttpResponseMessage> SetTimerByRetry([HttpTrigger(AuthorizationLevel.Anonymous, "post", "get", Route = "SetTimerByRetry")] HttpRequestMessage req,
                                                                       [DurableClient] IDurableClient client,
                                                                       ILogger log)
         {
-
-            //if (req.Method == HttpMethod.Get)
-            //{
-            //    log.LogRetryStart(timerName);
-
-            //    CronyTimerRetry cronyTimerRetry = new()
-            //    {
-            //        Content = "test content",
-            //        Url = "https://reqbin.com/sample/get/json",
-            //        HttpMethod = "Get",
-            //        StatusCodeReplyForCompletion = 201,
-            //        TimerOptions = new()
-            //        {
-            //            BackoffCoefficient = 1,
-            //            MaxRetryInterval = 15,
-            //            MaxNumberOfAttempts = 3,
-            //            Interval = 10,
-            //            //RetryTimeout
-            //        },
-            //        RetryOptions = new()
-            //        {
-            //            BackoffCoefficient = 1.2,
-            //            MaxRetryInterval = 360,
-            //            MaxNumberOfAttempts = 3,
-            //            Interval = 5
-            //            //RetryTimeout
-            //        }
-            //    };
-
-            //    CronyWebhook completionWebhook = new()
-            //    {
-            //        HttpMethod = "Get",
-            //        Url = "https://reqbin.com/sample/get/json",
-            //        RetryOptions = new()
-            //        {
-            //            BackoffCoefficient = 1.5,
-            //            Interval = 10,
-            //            MaxNumberOfAttempts = 5,
-            //            MaxRetryInterval = 30
-            //        }
-            //    };
-
-            //    string[] header = new string[] { "testheadervalue" };
-
-            //    completionWebhook.Headers.Add("testheader", header);
-
-            //    (TimerRetry timerRetry, Webhook webhook2) = cronyTimerRetry.CopyRetryModel();
-
-            //    EntityId webhookId = new("CompletionWebhook", timerName);
-
-            //    if (timerRetry.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
-            //    {
-            //        return new HttpResponseMessage(HttpStatusCode.BadRequest);
-            //    }
-
-            //    await client.SignalEntityAsync(webhookId, "set", operationInput: webhook2);
-
-            //    await client.StartNewAsync("OrchestrateTimerByRetry", timerName, (timerRetry, 0, DateTime.UtcNow));
-
-            //    return client.CreateCheckStatusResponse(req, timerName);
-            //}
-
-            //{"TimerOptions":{"Interval":10,"MaxRetryInterval":15,"MaxNumberOfAttempts":3,"BackoffCoefficient":1.0},"StatusCodeReplyForCompletion":201,"CompletionWebhook":{"Url":"https://reqbin.com/sample/get/json","Timeout":15,"Headers":null,"HttpMethod":"Get","Content":null,"PollIf202":false,"RetryOptions":{"Interval":10,"MaxRetryInterval":30,"MaxNumberOfAttempts":5,"BackoffCoefficient":1.5}},"Url":"https://reqbin.com/sample/get/json","Timeout":15,"Headers":null,"HttpMethod":"Get","Content":"test content","PollIf202":false,"RetryOptions":{"Interval":5,"MaxRetryInterval":360,"MaxNumberOfAttempts":3,"BackoffCoefficient":1.2}}
             CronyTimerRetry timerModel = JsonConvert.DeserializeObject<CronyTimerRetry>(await req.Content.ReadAsStringAsync());
 
-        bool? isStopped = await TerminateAndCleanup.IsReady(timerModel.Name, client);
+            bool? isStopped = await TerminateAndCleanup.IsReady(timerModel.Name, client);
 
             if (isStopped.HasValue && !isStopped.Value)
             {
                 return new HttpResponseMessage(HttpStatusCode.Conflict);
-    }
+            }
             if (timerModel.RetryOptions.MaxRetryInterval > TimeSpan.FromDays(6).TotalSeconds)
             {
                 return new HttpResponseMessage(HttpStatusCode.BadRequest);
@@ -169,16 +112,34 @@ namespace Crony.Timers
 
             (TimerRetry timer, Webhook webhook) = timerModel.CopyRetryModel();
 
-            if (webhook != null)
-            {
-                EntityId webhookId = new("CompletionWebhook", timerModel.Name);
+            bool hasWebhook = webhook != null;
 
-                await client.SignalEntityAsync(webhookId, "set", operationInput: webhook);
+            if (hasWebhook)
+            {
+                BlobServiceClient service = new(Environment.GetEnvironmentVariable("AzureWebJobsStorage"));
+
+                BlobContainerClient container = service.GetBlobContainerClient("crony-webhooks");
+
+                BlobClient blob = container.GetBlobClient(timerModel.Name);
+
+                try
+                {
+                    await blob.UploadAsync(BinaryData.FromObjectAsJson(webhook));
+                }
+                catch (Azure.RequestFailedException ex)
+                {
+                    if (ex.Status == 404)
+                    {
+                        await container.CreateIfNotExistsAsync();
+
+                        await blob.UploadAsync(BinaryData.FromObjectAsJson(webhook));
+                    }
+                }
             }
 
             log.LogRetryStart(timerModel.Name);
 
-            await client.StartNewAsync("OrchestrateTimerByRetry", timerModel.Name, (timer, 0, DateTime.UtcNow));
+            await client.StartNewAsync("OrchestrateTimerByRetry", timerModel.Name, (timer, 0, DateTime.UtcNow, hasWebhook));
 
             return client.CreateCheckStatusResponse(req, timerModel.Name);
         }

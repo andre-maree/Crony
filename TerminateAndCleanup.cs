@@ -9,24 +9,28 @@ using DurableTask.Core;
 using Microsoft.Extensions.Logging;
 using Crony.Models;
 using Crony;
+using Azure.Storage.Blobs;
+using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
+using Azure.Storage.Blobs.Models;
 
 namespace Durable.Crony.Microservice
 {
     public static class TerminateAndCleanup
     {
-        [FunctionName("CompletionWebhook")]
-        public static void CompletionWebhook([EntityTrigger] IDurableEntityContext ctx)
-        {
-            switch (ctx.OperationName.ToLowerInvariant())
-            {
-                case "set":
-                    ctx.SetState(ctx.GetInput<Webhook>());
-                    break;
-                case "get":
-                    ctx.Return(ctx.GetState<Webhook>());
-                    break;
-            }
-        }
+        //[FunctionName("CompletionWebhook")]
+        //public static void CompletionWebhook([EntityTrigger] IDurableEntityContext ctx)
+        //{
+        //    switch (ctx.OperationName.ToLowerInvariant())
+        //    {
+        //        case "set":
+        //            ctx.SetState(ctx.GetInput<Webhook>());
+        //            break;
+        //        case "get":
+        //            ctx.Return(ctx.GetState<Webhook>());
+        //            break;
+        //    }
+        //}
 
         [Deterministic]
         [FunctionName("OrchestrateCompletionWebook")]
@@ -35,108 +39,65 @@ namespace Durable.Crony.Microservice
         {
             string name = context.GetInput<string>();
 
-            EntityId webhookId = new("CompletionWebhook", name);
-
-            Webhook webhook = await context.CallEntityAsync<Webhook>(webhookId, "get");
-
-            if (webhook != null)
+            Microsoft.Azure.WebJobs.Extensions.DurableTask.RetryOptions ro = new(TimeSpan.FromSeconds(10), 5)
             {
-                DurableHttpRequest durquest = new(webhook.HttpMethod,
-                                                  new Uri(webhook.Url),
-                                                  content: webhook.Content,
-                                                  httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
-                                                  {
-                                                      BackoffCoefficient = webhook.RetryOptions.BackoffCoefficient,
-                                                      MaxRetryInterval = TimeSpan.FromSeconds(webhook.RetryOptions.MaxRetryInterval),
-                                                      StatusCodesToRetry = webhook.GetRetryEnabledStatusCodes()
-                                                  },
-                                                  asynchronousPatternEnabled: webhook.PollIf202,
-                                                  timeout: TimeSpan.FromSeconds(webhook.Timeout));
+                BackoffCoefficient = 1.2
+            };
 
-                foreach(var h in webhook.Headers)
-                {
-                    durquest.Headers.Add(h.Key, h.Value);
-                }
+            Webhook webhook = await context.CallActivityWithRetryAsync<Webhook>(nameof(GetWebhook), ro, name);
 
-                await context.CallHttpAsync(durquest);
+            DurableHttpRequest durquest = new(webhook.HttpMethod,
+                                              new Uri(webhook.Url),
+                                              content: webhook.Content,
+                                              httpRetryOptions: new HttpRetryOptions(TimeSpan.FromSeconds(webhook.RetryOptions.Interval), webhook.RetryOptions.MaxNumberOfAttempts)
+                                              {
+                                                  BackoffCoefficient = webhook.RetryOptions.BackoffCoefficient,
+                                                  MaxRetryInterval = TimeSpan.FromSeconds(webhook.RetryOptions.MaxRetryInterval),
+                                                  StatusCodesToRetry = webhook.GetRetryEnabledStatusCodes()
+                                              },
+                                              asynchronousPatternEnabled: webhook.PollIf202,
+                                              timeout: TimeSpan.FromSeconds(webhook.Timeout));
+
+            foreach (var h in webhook.Headers)
+            {
+                durquest.Headers.Add(h.Key, h.Value);
             }
+
+            await context.CallHttpAsync(durquest);
+
+            await context.CallActivityWithRetryAsync<Webhook>(nameof(DeleteWebhook), ro, name);
         }
 
-        public static async Task CompleteTimer(IDurableOrchestrationContext context)//, Webhook webhook)
+        public static async Task CompleteTimer(IDurableOrchestrationContext context)
         {
             await context.CallSubOrchestratorAsync("OrchestrateCompletionWebook", $"Completion_{context.InstanceId}", context.InstanceId);
-
-            //await context.CallActivityAsync("StartCleanup", context.InstanceId);
         }
 
-        //public static async Task PurgeInstanceHistory(this IDurableOrchestrationContext context,
-        //                                              string instanceId)
-        //    =>
-        //    await context.CallActivityWithRetryAsync(nameof(PurgeTimer), new Microsoft.Azure.WebJobs.Extensions.DurableTask.RetryOptions(TimeSpan.FromSeconds(5), 10)
-        //    {
-        //        BackoffCoefficient = 2,
-        //        MaxRetryInterval = TimeSpan.FromMinutes(5),
-        //    },
-        //    instanceId);
+        [FunctionName(nameof(GetWebhook))]
+        public static async Task<Webhook> GetWebhook([ActivityTrigger] string timerName)
+        {
+            BlobServiceClient service = new(Environment.GetEnvironmentVariable("AzureWebJobsStorage"));
 
-        //[Deterministic]
-        //[FunctionName("OrchestrateCleanup")]
-        //public static async Task OrchestrateCleanup([OrchestrationTrigger] IDurableOrchestrationContext context,
-        //                                            ILogger logger)
-        //{
-        //    (string instance, int count, bool delete) = context.GetInput<(string, int, bool)>();
+            BlobContainerClient container = service.GetBlobContainerClient("crony-webhooks");
 
-        //    if (count == 20)
-        //    {
-        //        //drop a queue message for delete
-        //        //await context.PurgeInstanceHistory(context.InstanceId);
+            BlobClient blobClient = container.GetBlobClient(timerName);
 
-        //        return;
-        //    }
+            BlobDownloadResult downloadResult = await blobClient.DownloadContentAsync();
 
-        //    ILogger slog = context.CreateReplaySafeLogger(logger);
+            return JsonConvert.DeserializeObject<Webhook>(downloadResult.Content.ToString());
+        }
 
-        //    DateTime date = context.CurrentUtcDateTime.AddSeconds(3);
+        [FunctionName(nameof(DeleteWebhook))]
+        public static async Task DeleteWebhook([ActivityTrigger] string timerName)
+        {
+            BlobServiceClient service = new(Environment.GetEnvironmentVariable("AzureWebJobsStorage"));
 
-        //    await context.CreateTimer(date, default);
+            BlobContainerClient container = service.GetBlobContainerClient("crony-webhooks");
 
-        //    bool? isStopped = await context.CallActivityAsync<bool?>(nameof(IsStopped), instance);
+            BlobClient blobClient = container.GetBlobClient(timerName);
 
-        //    if (!isStopped.HasValue)
-        //    {
-        //        //drop a queue message for delete
-        //        //await context.PurgeInstanceHistory(context.InstanceId);
-
-        //        slog.LogError("Timer not found to terminate");
-
-        //        return;
-        //    }
-
-        //    if (isStopped.Value)
-        //    {
-        //        if (delete)
-        //        {
-        //            slog.LogError("Deleting timer history: " + instance);
-
-        //            var t1 = context.PurgeInstanceHistory($"@completionwebhook@{instance}");
-        //            var t2 = context.PurgeInstanceHistory($"Completion_{instance}");
-        //            var t3 = context.PurgeInstanceHistory(instance);
-
-        //            await t1;
-        //            await t2;
-        //            await t3;
-
-        //            //drop a queue message for delete
-        //            //await context.PurgeInstanceHistory(context.InstanceId);
-        //        }
-
-        //        return;
-        //    }
-
-        //    count++;
-
-        //    context.ContinueAsNew((instance, count));
-        //}
+            await blobClient.DeleteAsync();
+        }
 
         [FunctionName(nameof(IsReady))]
         public static async Task<bool?> IsReady([ActivityTrigger] string timerName,
@@ -154,31 +115,11 @@ namespace Durable.Crony.Microservice
                    || status.RuntimeStatus == OrchestrationRuntimeStatus.Failed;
         }
 
-        //[FunctionName(nameof(StartCleanup))]
-        //public static async Task StartCleanup([ActivityTrigger] string timerName,
-        //    [DurableClient] IDurableClient client, ILogger slog)
-        //{
-        //    await client.StartNewAsync("OrchestrateCleanup", "delete_" + timerName, (timerName, 0, true));
-
-        //    slog.LogError("Timer delete started: " + timerName);
-        //}
-
-        //[FunctionName(nameof(PurgeTimer))]
-        //public static async Task PurgeTimer([ActivityTrigger] string timerName,
-        //    [DurableClient] IDurableClient client, ILogger slog)
-        //{
-        //    await client.PurgeInstanceHistoryAsync(timerName);
-
-        //    slog.LogError("Timer delete completed: " + timerName);
-        //}
-
         [FunctionName(nameof(CancelTimer))]
         public static async Task<HttpResponseMessage> CancelTimer([HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "CancelTimer/{timerName}")] HttpRequestMessage req,
                                                                   [DurableClient] IDurableOrchestrationClient client,
-                                                                  string timerName)//, bool delete)
+                                                                  string timerName)
         {
-            //await client.StartNewAsync("OrchestrateCleanup", "delete_" + timerName, (timerName, 0, true));
-
             await client.TerminateAsync(timerName, null);
 
             return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
@@ -198,7 +139,8 @@ namespace Durable.Crony.Microservice
                 await client.PurgeInstanceHistoryAsync(DateTime.MinValue, DateTime.UtcNow.AddDays(-1),
                     new List<OrchestrationStatus>
                     {
-                            OrchestrationStatus.Completed
+                            OrchestrationStatus.Completed,
+                            OrchestrationStatus.Terminated
                     });
 
                 //clear failed history
@@ -206,7 +148,8 @@ namespace Durable.Crony.Microservice
                     DateTime.MinValue, DateTime.UtcNow.AddDays(-7),
                     new List<OrchestrationStatus>
                     {
-                            OrchestrationStatus.Failed
+                            OrchestrationStatus.Failed,
+                            OrchestrationStatus.Canceled
                     });
             }
             catch (Exception ex)
