@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace Crony.Models
 {
@@ -37,5 +38,6 @@ namespace Crony.Models
         public int MaxRetryInterval { get; set; }
         public int MaxNumberOfAttempts { get; set; }
         public double BackoffCoefficient { get; set; }
+        public DateTime? EndDate { get; set; }
     }
 }

@@ -122,6 +122,8 @@ namespace Durable.Crony.Microservice
         {
             await client.TerminateAsync(timerName, null);
 
+            await DeleteWebhook(timerName);
+
             return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
         }
 

@@ -26,7 +26,7 @@ namespace Crony.Timers
 
             (TimerRetry timerObject, int count, DateTime deadline, bool hasWebhook) = context.GetInput<(TimerRetry, int, DateTime, bool)>();
 
-            if (timerObject.TimerOptions.MaxNumberOfAttempts <= count)
+            if (timerObject.TimerOptions.MaxNumberOfAttempts <= count || (timerObject.TimerOptions.EndDate != null && timerObject.TimerOptions.EndDate < context.CurrentUtcDateTime))
             {
 #if DEBUG
                 slog.LogRetryDone(context.InstanceId);
