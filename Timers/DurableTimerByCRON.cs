@@ -1,3 +1,4 @@
+#if DEBUG_NORETRY || RELEASE_NORETRY || DEBUG || RELEASE
 using System;
 using System.Net;
 using System.Net.Http;
@@ -21,7 +22,7 @@ namespace Crony.Timers
         public static async Task OrchestrateTimerByCRON([OrchestrationTrigger] IDurableOrchestrationContext context,
                                                         ILogger logger)
         {
-#if DEBUG
+#if DEBUG_NORETRY || DEBUG
             ILogger slog = context.CreateReplaySafeLogger(logger);
 #endif
 
@@ -29,7 +30,7 @@ namespace Crony.Timers
 
             if (timerObject.MaxNumberOfAttempts <= count)
             {
-#if DEBUG
+#if DEBUG_NORETRY || DEBUG
                 slog.LogCronDone(context.InstanceId);
 #endif
 
@@ -49,7 +50,7 @@ namespace Crony.Timers
 
             if (nextFireUTCTime == null)
             {
-#if DEBUG
+#if DEBUG_NORETRY || DEBUG
                 slog.LogCronDone(context.InstanceId);
 #endif
 
@@ -63,13 +64,13 @@ namespace Crony.Timers
 
             deadline = nextFireUTCTime.Value.UtcDateTime;
 
-#if DEBUG
+#if DEBUG_NORETRY || DEBUG
             slog.LogCronNext(context.InstanceId, deadline);
 #endif
 
             await context.CreateTimer(deadline, default);
 
-#if DEBUG
+#if DEBUG_NORETRY || DEBUG
             slog.LogCronTimer(context.InstanceId, context.CurrentUtcDateTime);
 #endif
 
@@ -77,7 +78,7 @@ namespace Crony.Timers
             {
                 if (await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
                 {
-#if DEBUG
+#if DEBUG_NORETRY || DEBUG
                     slog.LogCronDone(context.InstanceId);
 #endif
 
@@ -170,7 +171,7 @@ namespace Crony.Timers
             logger.LogError($"CRON: START {text} - {DateTime.UtcNow}");
         }
 
-#if DEBUG
+#if DEBUG_NORETRY || DEBUG
         private static void LogCronNext(this ILogger logger, string text, DateTime now)
         {
             logger.LogWarning($"CRON: NEXT >>> {text} - {now}");
@@ -190,3 +191,4 @@ namespace Crony.Timers
         #endregion
     }
 }
+#endif

@@ -2,6 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>
+    <Configurations>Debug;Release;DEBUG_NORETRY;DEBUG_NOCRON;RELEASE_NORETRY;RELEASE_NOCRON</Configurations>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Azure.Storage.Blobs" Version="12.17.0" />

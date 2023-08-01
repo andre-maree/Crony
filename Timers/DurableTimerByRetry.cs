@@ -1,3 +1,4 @@
+#if DEBUG_NOCRON || RELEASE_NOCRON || DEBUG || RELEASE
 using System;
 using System.Net;
 using System.Net.Http;
@@ -20,7 +21,7 @@ namespace Crony.Timers
         public static async Task OrchestrateTimerByRetry([OrchestrationTrigger] IDurableOrchestrationContext context,
                                                          ILogger logger)
         {
-#if DEBUG
+#if DEBUG_NOCRON || DEBUG
             ILogger slog = context.CreateReplaySafeLogger(logger);
 #endif
 
@@ -28,7 +29,7 @@ namespace Crony.Timers
 
             if (timerObject.TimerOptions.MaxNumberOfAttempts <= count || timerObject.TimerOptions.EndDate < context.CurrentUtcDateTime)
             {
-#if DEBUG
+#if DEBUG_NOCRON || DEBUG
                 slog.LogRetryDone(context.InstanceId);
 #endif
 
@@ -43,14 +44,14 @@ namespace Crony.Timers
             TimeSpan delay = ComputeNextDelay(timerObject.TimerOptions.Interval, timerObject.TimerOptions.BackoffCoefficient, timerObject.TimerOptions.MaxRetryInterval, count);
 
             deadline = deadline.Add(delay);
-#if DEBUG
+#if DEBUG_NOCRON || DEBUG
             slog.LogRetryNext(context.InstanceId, deadline);
 #endif
 
             await context.CreateTimer(deadline, default);
 
             DateTime now = context.CurrentUtcDateTime;
-#if DEBUG
+#if DEBUG_NOCRON || DEBUG
             slog.LogRetryTimer(context.InstanceId, now);
 #endif
 
@@ -58,7 +59,7 @@ namespace Crony.Timers
             {
                 if (await timerObject.ExecuteTimer(context, deadline) == timerObject.StatusCodeReplyForCompletion)
                 {
-#if DEBUG
+#if DEBUG_NOCRON || DEBUG
                     slog.LogRetryDone(context.InstanceId);
 #endif
 
@@ -173,7 +174,7 @@ namespace Crony.Timers
             logger.LogError($"RETRY: STARTED {text} - {DateTime.UtcNow}");
         }
 
-#if DEBUG
+#if DEBUG_NOCRON || DEBUG
         private static void LogRetryDone(this ILogger logger, string text)
         {
             logger.LogError($"RETRY: DONE {text}");
@@ -278,3 +279,4 @@ namespace Crony.Timers
         //}
     }
 }
+#endif

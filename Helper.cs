@@ -8,6 +8,7 @@ namespace Crony
 {
     public static class Helper
     {
+#if DEBUG_NOCRON || RELEASE_NOCRON || DEBUG || RELEASE
         public static (TimerRetry timer, Webhook webhook) CopyRetryModel(this CronyTimerRetry cronyTimer)
         {
             (Timer timer, Webhook webhook) = CreateBaseTimer(cronyTimer, true);
@@ -19,7 +20,9 @@ namespace Crony
 
             return (timerRetry, webhook);
         }
+#endif
 
+#if DEBUG_NORETRY || RELEASE_NORETRY || DEBUG || RELEASE
         public static (TimerCRON, Webhook) CopyCronModel(this CronyTimerCRON cronyTimer)
         {
             (Timer timer, Webhook webhook) = CreateBaseTimer(cronyTimer, false);
@@ -31,6 +34,7 @@ namespace Crony
 
             return (timerCRON, webhook);
         }
+#endif
 
         private static (Timer, Webhook) CreateBaseTimer(CronyTimer cronyTimer, bool isRetry)
         {

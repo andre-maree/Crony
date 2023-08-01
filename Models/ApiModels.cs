@@ -21,16 +21,20 @@ namespace Crony.Models
         public CronyWebhook CompletionWebhook { get; set; }
     }
 
+#if DEBUG_NORETRY || RELEASE_NORETRY || DEBUG || RELEASE
     public class CronyTimerCRON : CronyTimer
     {
         public string CRON { get; set; }
         public int MaxNumberOfAttempts { get; set; }
     }
+#endif
 
+#if DEBUG_NOCRON || RELEASE_NOCRON || DEBUG || RELEASE
     public class CronyTimerRetry : CronyTimer
     {
         public RetryOptions TimerOptions { get; set; }
     }
+#endif
 
     public class RetryOptions
     {
