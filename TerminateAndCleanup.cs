@@ -63,7 +63,14 @@ namespace Durable.Crony.Microservice
                 durquest.Headers.Add(h.Key, h.Value);
             }
 
-            await context.CallHttpAsync(durquest);
+            try
+            {
+                await context.CallHttpAsync(durquest);
+            }
+            catch(Exception ex)
+            {
+                context.SetCustomStatus($"Webhook call error: {ex.Message}");
+            }
 
             await context.CallActivityWithRetryAsync<Webhook>(nameof(DeleteWebhook), ro, name);
         }
