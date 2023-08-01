@@ -61,7 +61,7 @@ namespace Durable.Crony.Microservice
             }
             catch (Exception ex)
             {
-                context.SetCustomStatus($"Webhook call error: {ex.Message}");
+                context.SetOutput($"Webhook call error: {ex.Message}");
             }
 
             await context.CallActivityWithRetryAsync<Webhook>(nameof(DeleteWebhook), ro, name);
