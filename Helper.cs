@@ -1,4 +1,5 @@
 ﻿using Crony.Models;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
@@ -14,6 +15,7 @@ namespace Crony
             TimerRetry timerRetry = timer as TimerRetry;
 
             timerRetry.TimerOptions = cronyTimer.TimerOptions;
+            timerRetry.TimerOptions.EndDate = cronyTimer.TimerOptions.EndDate ?? DateTime.MaxValue;
 
             return (timerRetry, webhook);
         }
