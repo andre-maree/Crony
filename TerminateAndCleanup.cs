@@ -18,20 +18,6 @@ namespace Durable.Crony.Microservice
 {
     public static class TerminateAndCleanup
     {
-        //[FunctionName("CompletionWebhook")]
-        //public static void CompletionWebhook([EntityTrigger] IDurableEntityContext ctx)
-        //{
-        //    switch (ctx.OperationName.ToLowerInvariant())
-        //    {
-        //        case "set":
-        //            ctx.SetState(ctx.GetInput<Webhook>());
-        //            break;
-        //        case "get":
-        //            ctx.Return(ctx.GetState<Webhook>());
-        //            break;
-        //    }
-        //}
-
         [Deterministic]
         [FunctionName("OrchestrateCompletionWebook")]
         public static async Task OrchestrateCompletionWebook([OrchestrationTrigger] IDurableOrchestrationContext context,
