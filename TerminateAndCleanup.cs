@@ -10,9 +10,10 @@ using Microsoft.Extensions.Logging;
 using Crony.Models;
 using Crony;
 using Azure.Storage.Blobs;
-using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Azure.Storage.Blobs.Models;
+using System.ComponentModel;
+using System.Reflection.Metadata;
 
 namespace Durable.Crony.Microservice
 {
@@ -31,6 +32,11 @@ namespace Durable.Crony.Microservice
             };
 
             Webhook webhook = await context.CallActivityWithRetryAsync<Webhook>(nameof(GetWebhook), ro, name);
+
+            if(webhook == null)
+            {
+                throw new Exception("Webhook retrieval error");
+            }
 
             DurableHttpRequest durquest = new(webhook.HttpMethod,
                                               new Uri(webhook.Url),
@@ -53,7 +59,7 @@ namespace Durable.Crony.Microservice
             {
                 await context.CallHttpAsync(durquest);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 context.SetCustomStatus($"Webhook call error: {ex.Message}");
             }
@@ -75,7 +81,16 @@ namespace Durable.Crony.Microservice
 
             BlobClient blobClient = container.GetBlobClient(timerName);
 
-            BlobDownloadResult downloadResult = await blobClient.DownloadContentAsync();
+            BlobDownloadResult downloadResult;
+
+            try
+            {
+                downloadResult = await blobClient.DownloadContentAsync();
+            }
+            catch
+            {
+                return null;
+            }
 
             return JsonConvert.DeserializeObject<Webhook>(downloadResult.Content.ToString());
         }
