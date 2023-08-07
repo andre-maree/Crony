@@ -35,7 +35,7 @@ POST Url: http://{yourDomain}/SetTimerByRetry
 
 This will start a new timer with an interval of 10 seconds and will execute 3 times as set by MaxNumberOfAttempts. Reqbin.com is used for test API calls. This will execute every 10 seconds from when it started:
 
-```JSON
+```JSON 
 // NOTE: All time values are in seconds.
 {
   "Name": "Test-Retry-Timer", // required - the unique timer name that should be based on convention
