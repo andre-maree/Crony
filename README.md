@@ -42,8 +42,10 @@ This will start a new timer with an interval of 10 seconds and will execute 3 ti
   "Url": "https://reqbin.com/sample/get/json", // required - the callback URL that will be called on the interval
   "HttpMethod": "GET", // required - GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD
   "Content": "test content", // optional - any content that is associated with a timer
-  "PollIf202": false, // only useful if the URL call returns a 202, set this to true to make the URL call poll for a result on receiving a 202
-  "StatusCodeReplyForCompletion": 500, // set to 0 or less if not used -  use this to complete the timer based on the returned code from the URL call 
+  "PollIf202": false, // only useful if the URL call returns a 202,
+                      // set this to true to make the URL call poll for a result on receiving a 202
+  "StatusCodeReplyForCompletion": 500, // set to 0 or less if not used,
+                                       // use this to complete the timer based on the returned code from the URL call 
   "Timeout": 15, // required - this is for the URL call
   "TimerOptions": { // required:
     "Interval": 10, // interval for the URL calls
