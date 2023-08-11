@@ -35,37 +35,39 @@ POST Url: http://{yourDomain}/SetTimerByRetry
 
 This will start a new timer with an interval of 10 seconds and will execute 3 times as set by MaxNumberOfAttempts. Reqbin.com is used for test API calls. This will execute every 10 seconds from when it started:
 
-```json
+```JSON 
 // NOTE: All time values are in seconds.
 {
-  "Name": "Test-Retry-Timer",
-  "Url": "https://reqbin.com/sample/get/json",
-  "HttpMethod": "GET",
-  "Content": "test content",
-  "PollIf202": false,
-  "StatusCodeReplyForCompletion": 500,
-  "Timeout": 15,
-  "TimerOptions": {
-    "Interval": 10,
-    "MaxRetryInterval": 15,
-    "MaxNumberOfAttempts": 3,
-    "BackoffCoefficient": 1.0,
-    "EndDate": "2023-12-23T18:25:43.511Z"
+  "Name": "Test-Retry-Timer", // required - the unique timer name that should be based on convention
+  "Url": "https://reqbin.com/sample/get/json", // required - the callback URL that will be called on the interval
+  "HttpMethod": "GET", // required - GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD
+  "Content": "test content", // optional - any content that is associated with a timer
+  "PollIf202": false, // only useful if the URL call returns a 202,
+                      // set this to true to make the URL call poll for a result on receiving a 202
+  "StatusCodeReplyForCompletion": 500, // set to 0 or less if not used,
+                                       // use this to complete the timer based on the returned code from the URL call 
+  "Timeout": 15, // required - this is for the URL call
+  "TimerOptions": { // required:
+    "Interval": 10, // interval for the URL calls
+    "MaxRetryInterval": 15, // maximum time span for the interval
+    "MaxNumberOfAttempts": 3, // number of URL calls made before the timer completes
+    "BackoffCoefficient": 1.0, // exponentially back off the URL interval calls
+    "EndDate": "2023-12-23T18:25:43.511Z" // the end date on which the timer will complete
   },
-  "Headers": {
+  "Headers": { // required but can be empty - the header to be sent in the URL call
     "testheader": [
       "testheadervalue"
     ]
   },
-  "RetryOptions": {
+  "RetryOptions": { // required - for the URL call
     "Interval": 5,
     "MaxRetryInterval": 360,
     "MaxNumberOfAttempts": 3,
     "BackoffCoefficient": 1.2
   },
-  "CompletionWebhook": {
-    "Url": "https://reqbin.com/sample/get/json",
-    "Timeout": 15,
+  "CompletionWebhook": { // optional, make it null if not needed - this is called once the timer completes
+    "Url": "https://reqbin.com/sample/get/json", 
+    "Timeout": 15, 
     "HttpMethod": "GET",
     "Content": null,
     "PollIf202": false,
@@ -74,7 +76,7 @@ This will start a new timer with an interval of 10 seconds and will execute 3 ti
         "testheadervalue"
       ]
     },
-    "RetryOptions": {
+    "RetryOptions": { // required
       "Interval": 10,
       "MaxRetryInterval": 30,
       "MaxNumberOfAttempts": 5,
