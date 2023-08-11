@@ -107,5 +107,98 @@ namespace Crony
         {
             HttpStatusCode.Conflict, HttpStatusCode.BadGateway, HttpStatusCode.GatewayTimeout, HttpStatusCode.RequestTimeout, HttpStatusCode.ServiceUnavailable
         };
+
+        public static string ValidateRetryOptions(RetryOptions timerRetryRO, string type)
+        {
+            if (timerRetryRO.Interval < 1)
+            {
+                return $"{type} interval must be set to more than 0.";
+            }
+
+            if (timerRetryRO.BackoffCoefficient <= 0)
+            {
+                return $"{type} backoff coefficient must be greater than 0.";
+            }
+
+            if (timerRetryRO.MaxNumberOfAttempts < 1)
+            {
+                return $"{type} MaxNumberOfAttempts must have a minimum of 1.";
+            }
+
+            if (timerRetryRO.MaxRetryInterval < 1)
+            {
+                return $"{type} MaxRetryInterval must have a minimum of 1.";
+            }
+
+            if (timerRetryRO.EndDate != null && timerRetryRO.EndDate < DateTime.UtcNow)
+            {
+                return $"{type} end date must be in the future.";
+            }
+
+            return null;
+        }
+
+        public static string ValidateBase(CronyTimer timerModel)
+        {
+            string error;
+
+            if (string.IsNullOrWhiteSpace(timerModel.Name))
+            {
+                return "The timer name is invalid.";
+            }
+
+            if (!Uri.IsWellFormedUriString(timerModel.Url, UriKind.Absolute))
+            {
+                return "The timer has an invalid timer url.";
+            }
+
+            if (timerModel.Timeout < 1)
+            {
+                return "The timer must have a timeout bigger than 0.";
+            }
+
+            error = ValidateRetryOptions(timerModel.RetryOptions, "Timer RetryOptions");
+
+            if (error != null)
+            {
+                return error;
+            }
+
+            //-----------------------------------------------------------
+            if (timerModel.CompletionWebhook != null)
+            {
+                if (timerModel.CompletionWebhook.RetryOptions == null)
+                {
+                    return "The completion webhook RetryOptions can not be null.";
+                }
+
+                error = ValidateRetryOptions(timerModel.CompletionWebhook.RetryOptions, "CompletionWebhook RetryOptions");
+
+                if (error != null)
+                {
+                    return error;
+                }
+
+                if (!Uri.IsWellFormedUriString(timerModel.CompletionWebhook.Url, UriKind.Absolute))
+                {
+                    return "The completion webhook must have a valid url.";
+                }
+
+                if (timerModel.CompletionWebhook.Timeout < 1)
+                {
+                    return "The completion webhook must have a timeout bigger than 0.";
+                }
+            }
+
+            return null;
+        }
+
+        public static HttpResponseMessage Error(string error)
+        {
+            return new(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent(error)
+            };
+        }
     }
 }

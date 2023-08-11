@@ -100,6 +100,13 @@ namespace Crony.Timers
         {
             CronyTimerRetry timerModel = JsonConvert.DeserializeObject<CronyTimerRetry>(await req.Content.ReadAsStringAsync());
 
+            string error = ValidateRetryTimer(timerModel);
+
+            if (error != null)
+            {
+                return Helper.Error(error);
+            }
+
             bool? isStopped = await TerminateAndCleanup.IsReady(timerModel.Name, client);
 
             if (isStopped.HasValue && !isStopped.Value)
@@ -165,6 +172,25 @@ namespace Crony.Timers
             return nextDelay.TotalMilliseconds > maxDelay.TotalMilliseconds
                 ? maxDelay
                 : nextDelay;
+        }
+
+        private static string ValidateRetryTimer(CronyTimerRetry timerRetry)
+        {
+            string error = Helper.ValidateBase(timerRetry);
+
+            if (error != null)
+            {
+                return error;
+            }
+
+            error = Helper.ValidateRetryOptions(timerRetry.TimerOptions, "TimerOptions");
+
+            if (error != null)
+            {
+                return error;
+            }
+
+            return null;
         }
 
         #region Logging

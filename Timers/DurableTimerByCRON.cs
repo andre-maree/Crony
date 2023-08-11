@@ -111,6 +111,13 @@ namespace Crony.Timers
         {
             CronyTimerCRON timerModel = JsonConvert.DeserializeObject<CronyTimerCRON>(await req.Content.ReadAsStringAsync());
 
+            string error = ValidateCRONTimer(timerModel);
+
+            if (error != null)
+            {
+                return Helper.Error(error);
+            }
+
             bool? isStopped = await TerminateAndCleanup.IsReady(timerModel.Name, client);
 
             if (isStopped.HasValue && !isStopped.Value)
@@ -162,6 +169,23 @@ namespace Crony.Timers
             await client.StartNewAsync("OrchestrateTimerByCRON", timerModel.Name, (timer, 0, hasWebhook));
 
             return client.CreateCheckStatusResponse(req, timerModel.Name);
+        }
+
+        private static string ValidateCRONTimer(CronyTimerCRON timerCRON)
+        {
+            if (!CronExpression.IsValidExpression(timerCRON.CRON))
+            {
+                return "Invalid CRON expression.";
+            }
+
+            string error = Helper.ValidateBase(timerCRON);
+
+            if (error != null)
+            {
+                return error;
+            }
+
+            return null;
         }
 
         #region Logging
